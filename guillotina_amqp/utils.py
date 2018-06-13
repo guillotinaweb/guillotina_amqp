@@ -1,5 +1,5 @@
 from guillotina import app_settings
-from guillotina.component import get_utility
+from guillotina.interfaces import Allow
 from guillotina.interfaces import IAbsoluteURL
 from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
@@ -7,7 +7,7 @@ from guillotina.utils import get_dotted_name
 from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp import amqp
-from guillotina_amqp.interfaces import IStateManagerUtility
+from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 
 import aioamqp
@@ -33,7 +33,8 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
         user = participation.principal
         req_data['user'] = {
             'id': user.id,
-            'roles': user.roles,
+            'roles': [name for name, setting in user.roles.items()
+                      if setting == Allow],
             'groups': user.groups,
             'Authorization': _request.headers.get('Authorization'),
             'data': getattr(user, 'data', {})
@@ -68,9 +69,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
                     'delivery_mode': 2
                 }
             )
-            state_manager = get_utility(
-                IStateManagerUtility,
-                name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+            state_manager = get_state_manager()
             await state_manager.update(task_id, {
                 'status': 'scheduled'
             })

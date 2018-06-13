@@ -1,7 +1,9 @@
 1.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix serialization issues with roles
+
+- Handle invalid state manager
 
 
 1.0.2 (2018-06-13)

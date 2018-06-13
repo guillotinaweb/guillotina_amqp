@@ -29,8 +29,8 @@ testing.configure_with(base_settings_configurator)
 
 
 @pytest.fixture('function')
-def amqp_worker(dummy_request, loop):
-    _worker = Worker(dummy_request, loop)
+def amqp_worker(loop):
+    _worker = Worker(loop=loop)
     loop.run_until_complete(_worker.start())
     yield _worker
     for conn in [v for v in app_settings['amqp'].get('connections', []).values()]:

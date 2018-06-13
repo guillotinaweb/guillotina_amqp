@@ -1,10 +1,10 @@
 from aiohttp import test_utils
 from aiohttp.helpers import noop
-from guillotina import app_settings
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
 from guillotina.component import get_utility
 from guillotina.interfaces import ACTIVE_LAYERS_KEY
+from guillotina.interfaces import Allow
 from guillotina.interfaces import IAnnotations
 from guillotina.interfaces import IApplication
 from guillotina.registry import REGISTRY_DATA_KEY
@@ -13,7 +13,7 @@ from guillotina.transactions import abort
 from guillotina.transactions import commit
 from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
-from guillotina_amqp.interfaces import IStateManagerUtility
+from guillotina_amqp.state import get_state_manager
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
@@ -37,7 +37,7 @@ def login_user(request, user_data):
         user = GuillotinaUser(request)
         user.id = user_data['id']
         user._groups = user_data.get('groups', [])
-        user._roles = user_data.get('roles', [])
+        user._roles = {name: Allow for name in user_data['roles']}
         user.data = user_data.get('data', {})
         participation.principal = user
         request._cache_user = user
@@ -61,6 +61,9 @@ class EmptyPayload:
 class Job:
 
     def __init__(self, base_request, data, channel, envelope):
+        if base_request is None:
+            from guillotina.tests.utils import make_mocked_request
+            base_request = make_mocked_request('POST', '/db')
         self.base_request = base_request
         self.data = data
         self.channel = channel
@@ -72,9 +75,7 @@ class Job:
     @property
     def state_manager(self):
         if self._state_manager is None:
-            self._state_manager = get_utility(
-                IStateManagerUtility,
-                name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+            self._state_manager = get_state_manager()
         return self._state_manager
 
     async def create_request(self):

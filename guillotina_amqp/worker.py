@@ -1,8 +1,7 @@
 from guillotina import app_settings
-from guillotina.component import get_utility
 from guillotina_amqp import amqp
-from guillotina_amqp.interfaces import IStateManagerUtility
 from guillotina_amqp.job import Job
+from guillotina_amqp.state import get_state_manager
 
 import asyncio
 import json
@@ -18,7 +17,7 @@ class Worker:
     last_activity = time.time()
     total_run = 0
 
-    def __init__(self, request, loop=None, max_size=5):
+    def __init__(self, request=None, loop=None, max_size=5):
         self.request = request
         self.loop = loop
         self._running = []
@@ -29,9 +28,7 @@ class Worker:
     @property
     def state_manager(self):
         if self._state_manager is None:
-            self._state_manager = get_utility(
-                IStateManagerUtility,
-                name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+            self._state_manager = get_state_manager()
         return self._state_manager
 
     @property

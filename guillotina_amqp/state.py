@@ -5,6 +5,7 @@ from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
+from zope.interface.interfaces import ComponentLookupError
 
 import asyncio
 import json
@@ -52,6 +53,16 @@ class MemoryStateManager:
 
 
 _EMPTY = object()
+
+
+def get_state_manager():
+    try:
+        return get_utility(
+            IStateManagerUtility,
+            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+    except ComponentLookupError:
+        from guillotina_amqp.state import DummyStateManager
+        return DummyStateManager()
 
 
 @configure.utility(provides=IStateManagerUtility, name='redis')
@@ -105,9 +116,7 @@ class TaskState:
         self.task_id = task_id
 
     async def join(self, wait=0.5):
-        util = get_utility(
-            IStateManagerUtility,
-            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        util = get_state_manager()
         while True:
             data = await util.get(self.task_id)
             if data is None:
@@ -117,9 +126,7 @@ class TaskState:
             await asyncio.sleep(wait)
 
     async def get_state(self):
-        util = get_utility(
-            IStateManagerUtility,
-            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        util = get_state_manager()
         data = await util.get(self.task_id)
         if data is None:
             raise TaskNotFoundException(self.task_id)
@@ -134,18 +141,14 @@ class TaskState:
         - finished
         - errored
         '''
-        util = get_utility(
-            IStateManagerUtility,
-            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        util = get_state_manager()
         data = await util.get(self.task_id)
         if data is None:
             raise TaskNotFoundException(self.task_id)
         return data.get('status')
 
     async def get_result(self):
-        util = get_utility(
-            IStateManagerUtility,
-            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        util = get_state_manager()
         data = await util.get(self.task_id)
         if data is None:
             raise TaskNotFoundException(self.task_id)
