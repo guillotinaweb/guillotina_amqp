@@ -3,7 +3,6 @@ from guillotina.utils import resolve_dotted_name
 
 import aioamqp
 import asyncio
-import json
 import logging
 
 
@@ -40,12 +39,15 @@ async def remove_connection(name='default'):
 async def handle_connection_closed(name, protocol):
     try:
         # this just waits for the connection to close
-        await protocol.wait_closed()
+        try:
+            await protocol.wait_closed()
+        except GeneratorExit:
+            return
         # we just remove so next time get_connection is retrieved, a new
         # connection is retrieved.
         logger.warn('Disconnect detected with rabbitmq connection, forcing reconnect')
         await remove_connection(name)
-    except:
+    except Exception:
         logger.error('Error waiting for connection to close', exc_info=True)
 
 

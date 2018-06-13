@@ -1,22 +1,28 @@
 from guillotina import app_settings
+from guillotina.interfaces import IAbsoluteURL
+from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
 from guillotina.utils import get_dotted_name
+from guillotina.utils import navigate_to
 from guillotina_amqp import amqp
-from guillotina.interfaces import IAbsoluteURL
 
 import aioamqp
 import json
 
 
-async def add_task(func, *args, _request=None, _db_txn=True, _retries=3, **kwargs):
+async def add_task(func, *args, _request=None, _retries=3, **kwargs):
     if _request is None:
         _request = get_current_request()
 
-    user_data = {}
+    req_data = {
+        'url': str(_request.url),
+        'headers': dict(_request.headers),
+        'method': _request.method
+    }
     try:
         participation = _request.security.participations[0]
         user = participation.principal
-        user_data = {
+        req_data['user'] = {
             'id': user.id,
             'roles': user.roles,
             'groups': user.groups,
@@ -27,21 +33,20 @@ async def add_task(func, *args, _request=None, _db_txn=True, _retries=3, **kwarg
         pass
 
     if getattr(_request, 'container', None):
-        user_data['container_url'] = IAbsoluteURL(_request.container, _request)()
+        req_data['container_url'] = IAbsoluteURL(_request.container, _request)()
 
     retries = 0
     while True:
         channel, transport, protocol = await amqp.get_connection()
         try:
-            await channel.basic_publish(
-                payload=json.dumps({
+            await channel.publish(
+                message=json.dumps({
                     'func': get_dotted_name(func),
                     'args': args,
                     'kwargs': kwargs,
-                    'db_txn': _db_txn,
                     'db_id': getattr(_request, '_db_id', None),
                     'container_id': getattr(_request, '_container_id', None),
-                    'user_data': user_data
+                    'req_data': req_data
                 }),
                 exchange_name=app_settings['amqp']['exchange'],
                 routing_key=app_settings['amqp']['queue'],
@@ -55,3 +60,15 @@ async def add_task(func, *args, _request=None, _db_txn=True, _retries=3, **kwarg
             if retries >= _retries:
                 raise
             retries += 1
+
+
+async def _run_object_tasks(func, path):
+    request = get_current_request()
+    ob = await navigate_to(request.container, path)
+    return await func(ob)
+
+
+async def add_object_task(func, ob, _request=None, _retries=3):
+    await add_task(
+        _run_object_tasks, get_content_path(ob),
+        _request=_request, _retries=_retries)

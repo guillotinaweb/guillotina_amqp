@@ -1,80 +1,40 @@
-from guillotina import app_settings
-from guillotina.auth.participation import GuillotinaParticipation
-from guillotina.auth.users import GuillotinaUser
-from guillotina.browser import get_physical_path
 from guillotina.commands import Command
-from guillotina.security.policy import Interaction
-from guillotina_amqp import amqp
-from urllib.parse import urlparse
+from guillotina_amqp.worker import Worker
 
 import aiotask_context
+import asyncio
 import logging
-import yarl
+import sys
+import time
 
 
 logger = logging.getLogger('guillotina_amqp')
 
 
-def login_user(request, user_data):
-    request.security = Interaction(request)
-    participation = GuillotinaParticipation(request)
-    participation.interaction = None
-
-    if 'id' in user_data:
-        user = GuillotinaUser(request)
-        user.id = user_data['id']
-        user._groups = user_data.get('groups', [])
-        user._roles = user_data.get('roles', [])
-        user.data = user_data.get('data', {})
-        participation.principal = user
-        request._cache_user = user
-
-    request.security.add(participation)
-    request.security.invalidate_cache()
-    request._cache_groups = {}
-    if user_data.get('Authorization'):
-        request.headers['Authorization'] = user_data['Authorization']
-
-
-def setup_request(request, user_data):
-    if 'container_url' in user_data and getattr(request, '_db_id', None):
-        container_url = user_data['container_url']
-        parsed_url = urlparse(container_url)
-        request._cache.clear()
-        if 'https' in container_url:
-            request._secure_proxy_ssl_header = ('FORCE_SSL', 'true')
-            request.headers['FORCE_SSL'] = 'true'
-        request.headers.update({
-            'HOST': parsed_url.hostname,
-            'X-VirtualHost-Monster': container_url.replace(
-                request._db_id + '/'.join(get_physical_path(request.container)), ''
-            )
-        })
-        request._rel_url = yarl.URL(yarl.URL(container_url).path)
-
-
-class Worker:
-    concurrency = 5
-
-    def __init__(self, request):
-        self.request = request
-
-    async def handle_queued_job(self, channel, body, envelope, properties):
-        login_user(request, user_data)
-        setup_request(request, user_data)
-
-    async def __call__(self):
-        channel, transport, protocol = await amqp.get_connection()
-        await channel.basic_qos(prefetch_count=4)
-        await channel.basic_consume(
-            self.handle_queued_job,
-            queue_name=app_settings['amqp']['queue'])
+async def activity_check(worker, timeout):
+    while True:
+        await asyncio.sleep(60)
+        if (time.time() - worker.last_activity) > timeout:
+            logger.error(f'Exiting worker because no activity in {timeout} seconds')
+            sys.exit(1)
 
 
 class WorkerCommand(Command):
     description = 'AMQP worker'
 
+    def get_parser(self):
+        parser = super().get_parser()
+        parser.add_argument('--auto-kill-timeout',
+                            help='How long of no activity before we automatically kill process',
+                            type=int, default=-1)
+        return parser
+
     async def run(self, arguments, settings, app):
         aiotask_context.set('request', self.request)
-        worker = Worker(self.request)
-        await worker()
+        worker = Worker(self.request, self.get_loop())
+        await worker.start()
+        if arguments.auto_kill_timeout > 0:
+            asyncio.ensure_future(activity_check(worker, arguments.auto_kill_timeout))
+        while True:
+            # make this run forever...
+            await asyncio.sleep(999999)

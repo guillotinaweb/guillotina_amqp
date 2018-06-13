@@ -41,13 +41,6 @@ class MockAMQPChannel:
         self.consumers = []
         self.closed = False
         self.unacked_messages = []
-        self.queued = []
-
-    async def basic_publish(self, payload, **kwargs):
-        self.queued.append({
-            'payload': payload,
-            'kwargs': kwargs
-        })
 
     async def basic_qos(self, *args, **kwargs):
         pass
@@ -68,7 +61,7 @@ class MockAMQPChannel:
 
     async def _basic_consume(self, handler, queue_name):
         while not self.closed:
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(0.02)
             if queue_name not in self.protocol.queues:
                 continue
             else:
@@ -99,6 +92,8 @@ class MockAMQPChannel:
         self.consumers.append(asyncio.ensure_future(self._basic_consume(handler, queue_name)))
 
     async def publish(self, message=None, exchange_name=None, routing_key=None, properties={}):
+        if routing_key not in self.protocol.queues:
+            self.protocol.queues[routing_key] = []
         self.protocol.queues[routing_key].append({
             'id': str(uuid.uuid4()),
             'message': message,
@@ -136,6 +131,7 @@ class MockAMQPProtocol:
     async def wait_closed(self):
         while not self.closed:
             await asyncio.sleep(0.05)
+        raise GeneratorExit()
 
     async def close(self):
         self.closed = True
