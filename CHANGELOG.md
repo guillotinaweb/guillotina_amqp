@@ -1,9 +1,8 @@
-1.0.1 (unreleased)
-------------------
+## 1.0.1 (unreleased)
 
-- Nothing changed yet.
+- Really release
 
 
-1.0.0 (2018-06-13)
+## 1.0.0 (2018-06-13)
 
 - initial
