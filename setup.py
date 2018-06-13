@@ -18,7 +18,7 @@ setup(
     ],
     author='Nathan Van Gheem',
     author_email='vangheem@gmail.com',
-    url='',
+    url='https://github.com/guillotinaweb/guillotina_amqp',
     packages=find_packages(exclude=['demo']),
     include_package_data=True,
     tests_require=[
@@ -37,7 +37,15 @@ setup(
             'coverage==4.0.3'
         ]
     },
-    classifiers=[],
+    license='BSD',
+    classifiers=[
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Internet :: WWW/HTTP',
+        'Intended Audience :: Developers',
+    ],
     entry_points={
     }
 )
