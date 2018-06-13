@@ -16,7 +16,6 @@ install:
   - sleep 5
 script:
   - flake8 guillotina_batch --config=setup.cfg
-  - mypy guillotina/
   - pytest -s --cov=guillotina_batch -s --tb=native -v --cov-report term-missing --cov-append guillotina_batch
 after_success:
   - codecov
