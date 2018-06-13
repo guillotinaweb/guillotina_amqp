@@ -20,7 +20,8 @@ def base_settings_configurator(settings):
         "vhost": "/",
         "heartbeat": 800,
         "exchange": "guillotina",
-        "queue": "guillotina"
+        "queue": "guillotina",
+        "persistent_manager": "memory"
     }
 
 

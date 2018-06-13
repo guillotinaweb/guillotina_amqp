@@ -1,5 +1,7 @@
 from guillotina import app_settings
+from guillotina.component import get_utility
 from guillotina_amqp import amqp
+from guillotina_amqp.interfaces import IStateManagerUtility
 from guillotina_amqp.job import Job
 
 import asyncio
@@ -18,6 +20,15 @@ class Worker:
         self._running = []
         self._max_size = max_size
         self._closing = False
+        self._state_manager = None
+
+    @property
+    def state_manager(self):
+        if self._state_manager is None:
+            self._state_manager = get_utility(
+                IStateManagerUtility,
+                name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        return self._state_manager
 
     @property
     def num_running(self):
@@ -27,6 +38,9 @@ class Worker:
         if not isinstance(body, str):
             body = body.decode('utf-8')
         data = json.loads(body)
+        await self.state_manager.update(data['task_id'], {
+            'status': 'scheduled'
+        })
         while len(self._running) >= self._max_size:
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()

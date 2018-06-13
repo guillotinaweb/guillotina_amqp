@@ -11,7 +11,8 @@ app_settings = {
         "vhost": "/",
         "heartbeat": 800,
         "exchange": "guillotina",
-        "queue": "guillotina"
+        "queue": "guillotina",
+        "persistent_manager": "dummy"
     }
 }
 

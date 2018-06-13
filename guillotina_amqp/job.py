@@ -10,8 +10,10 @@ from guillotina.interfaces import IApplication
 from guillotina.registry import REGISTRY_DATA_KEY
 from guillotina.security.policy import Interaction
 from guillotina.transactions import abort
+from guillotina.transactions import commit
 from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
+from guillotina_amqp.interfaces import IStateManagerUtility
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
@@ -19,6 +21,7 @@ from zope.interface import alsoProvides
 
 import aiotask_context
 import logging
+import traceback
 import yarl
 
 
@@ -64,6 +67,15 @@ class Job:
         self.envelope = envelope
 
         self.task = None
+        self._state_manager = None
+
+    @property
+    def state_manager(self):
+        if self._state_manager is None:
+            self._state_manager = get_utility(
+                IStateManagerUtility,
+                name=app_settings['amqp'].get('persistent_manager', 'dummy'))
+        return self._state_manager
 
     async def create_request(self):
         req_data = self.data['req_data']
@@ -102,7 +114,7 @@ class Job:
         if self.data.get('db_id'):
             root = get_utility(IApplication, name='root')
             db = await root.async_get(self.data['db_id'])
-            request._db_write_enabled = app_settings['check_writable_request'](request)
+            request._db_write_enabled = True
             request._db_id = db.id
             # Add a transaction Manager to request
             tm = request._tm = db.get_transaction_manager()
@@ -129,7 +141,11 @@ class Job:
 
     async def __call__(self):
         request = None
+        committed = False
         try:
+            await self.state_manager.update(self.data['task_id'], {
+                'status': 'running'
+            })
             request = await self.create_request()
 
             req_data = self.data['req_data']
@@ -137,14 +153,27 @@ class Job:
                 login_user(request, req_data['user'])
 
             func = resolve_dotted_name(self.data['func'])
-            await func(*self.data['args'], **self.data['kwargs'])
+            if hasattr(func, '__real_func__'):
+                # from decorators
+                func = func.__real_func__
+            result = await func(*self.data['args'], **self.data['kwargs'])
+            await commit(request)
+            committed = True
             await self.channel.basic_client_ack(
                 delivery_tag=self.envelope.delivery_tag)
+            await self.state_manager.update(self.data['task_id'], {
+                'status': 'finished',
+                'result': result
+            })
         except Exception:
             logger.warning(f'Error executing task: {self.data}', exc_info=True)
             await self.channel.basic_client_nack(
                 delivery_tag=self.envelope.delivery_tag,
                 multiple=False, requeue=False)
+            await self.state_manager.update(self.data['task_id'], {
+                'status': 'errored',
+                'error': traceback.format_exc()
+            })
         finally:
-            if request is not None:
+            if request is not None and not committed:
                 await abort(request)

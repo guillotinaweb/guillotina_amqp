@@ -23,6 +23,7 @@ setup(
     include_package_data=True,
     tests_require=[
         'pytest',
+        'lru-dict'
     ],
     extras_require={
         'test': [
