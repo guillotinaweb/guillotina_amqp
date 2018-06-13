@@ -1,4 +1,5 @@
 from .utils import add_task  # noqa
+from .decorators import task  # noqa
 
 
 app_settings = {

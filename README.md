@@ -1,10 +1,5 @@
 # guillotina_amqp Docs
 
-UNFINISHED!!!!
-
-Some proof of concept here but unfinished!
-
-
 Integrates aioamqp into guillotina.
 
 
@@ -52,4 +47,17 @@ Most simple way to get running::
 ```python
 from guillotina_amqp import add_task
 await add_task(my_func, 'foobar', kw_arg='blah')
+```
+
+
+## With decorators
+
+```python
+from guillotina_amqp import task
+
+@task
+async def my_func(foo):
+    print(foo)
+
+await my_func('bar')
 ```
