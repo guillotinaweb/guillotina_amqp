@@ -1,4 +1,4 @@
-1.0.3 (unreleased)
+1.0.3 (2018-06-13)
 ------------------
 
 - Fix serialization issues with roles
