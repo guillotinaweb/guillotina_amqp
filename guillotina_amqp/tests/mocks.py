@@ -91,7 +91,7 @@ class MockAMQPChannel:
     async def basic_consume(self, handler, queue_name):
         self.consumers.append(asyncio.ensure_future(self._basic_consume(handler, queue_name)))
 
-    async def publish(self, message=None, exchange_name=None, routing_key=None, properties={}):
+    async def publish(self, message, exchange_name=None, routing_key=None, properties={}):
         if routing_key not in self.protocol.queues:
             self.protocol.queues[routing_key] = []
         self.protocol.queues[routing_key].append({

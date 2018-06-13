@@ -19,7 +19,7 @@ def base_settings_configurator(settings):
         "password": "guest",
         "vhost": "/",
         "heartbeat": 800,
-        "exchange": "guillotina",
+        "exchange": "",
         "queue": "guillotina",
         "persistent_manager": "memory"
     }

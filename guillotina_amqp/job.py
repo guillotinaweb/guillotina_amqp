@@ -142,6 +142,10 @@ class Job:
     async def __call__(self):
         request = None
         committed = False
+        task_id = self.data['task_id']
+        dotted_name = self.data['func']
+        logger.info(f'Running task: {task_id}: {dotted_name}')
+
         try:
             await self.state_manager.update(self.data['task_id'], {
                 'status': 'running'
@@ -152,6 +156,7 @@ class Job:
             if 'user' in req_data:
                 login_user(request, req_data['user'])
 
+            logger.warning(f"Running job: {self.data['func']}")
             func = resolve_dotted_name(self.data['func'])
             if hasattr(func, '__real_func__'):
                 # from decorators
@@ -165,6 +170,7 @@ class Job:
                 'status': 'finished',
                 'result': result
             })
+            logger.info(f'Finished task: {task_id}: {dotted_name}')
         except Exception:
             logger.warning(f'Error executing task: {self.data}', exc_info=True)
             await self.channel.basic_client_nack(

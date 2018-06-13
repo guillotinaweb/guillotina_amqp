@@ -1,5 +1,7 @@
-from .utils import add_task  # noqa
+from .decorators import object_task  # noqa
 from .decorators import task  # noqa
+from .utils import add_object_task  # noqa
+from .utils import add_task  # noqa
 
 
 app_settings = {
@@ -11,9 +13,12 @@ app_settings = {
         "password": "guest",
         "vhost": "/",
         "heartbeat": 800,
-        "exchange": "guillotina",
+        "exchange": "",
         "queue": "guillotina",
         "persistent_manager": "dummy"
+    },
+    'commands': {
+        "amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"
     }
 }
 

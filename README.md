@@ -61,3 +61,11 @@ async def my_func(foo):
 
 await my_func('bar')
 ```
+
+
+## Run the worker
+
+
+```
+g amqp-worker
+```

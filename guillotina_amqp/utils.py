@@ -1,6 +1,5 @@
 from guillotina import app_settings
 from guillotina.component import get_utility
-from guillotina_amqp.interfaces import IStateManagerUtility
 from guillotina.interfaces import IAbsoluteURL
 from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
@@ -8,10 +7,16 @@ from guillotina.utils import get_dotted_name
 from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp import amqp
+from guillotina_amqp.interfaces import IStateManagerUtility
 from guillotina_amqp.state import TaskState
+
 import aioamqp
 import json
+import logging
 import uuid
+
+
+logger = logging.getLogger('guillotina_amqp')
 
 
 async def add_task(func, *args, _request=None, _retries=3, **kwargs):
@@ -45,9 +50,11 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
         try:
             task_id = str(uuid.uuid4())
             state = TaskState(task_id)
+            dotted_name = get_dotted_name(func)
+            logger.info(f'Scheduling task: {task_id}: {dotted_name}')
             await channel.publish(
-                message=json.dumps({
-                    'func': get_dotted_name(func),
+                json.dumps({
+                    'func': dotted_name,
                     'args': args,
                     'kwargs': kwargs,
                     'db_id': getattr(_request, '_db_id', None),
@@ -67,6 +74,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             await state_manager.update(task_id, {
                 'status': 'scheduled'
             })
+            logger.info(f'Scheduled task: {task_id}: {dotted_name}')
             return state
         except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
             await amqp.remove_connection()

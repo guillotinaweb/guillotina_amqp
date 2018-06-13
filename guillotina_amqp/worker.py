@@ -6,7 +6,11 @@ from guillotina_amqp.job import Job
 
 import asyncio
 import json
+import logging
 import time
+
+
+logger = logging.getLogger('guillotina_amqp')
 
 
 class Worker:
@@ -38,9 +42,12 @@ class Worker:
         if not isinstance(body, str):
             body = body.decode('utf-8')
         data = json.loads(body)
-        await self.state_manager.update(data['task_id'], {
+        task_id = data['task_id']
+        dotted_name = data['func']
+        await self.state_manager.update(task_id, {
             'status': 'scheduled'
         })
+        logger.info(f'Received task: {task_id}: {dotted_name}')
         while len(self._running) >= self._max_size:
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()
@@ -58,6 +65,11 @@ class Worker:
 
     async def start(self):
         channel, transport, protocol = await amqp.get_connection()
+
+        await channel.exchange_declare(
+            exchange_name=app_settings['amqp']['exchange'],
+            type_name='direct',
+            durable=True)
 
         await channel.queue_declare(
             queue_name=app_settings['amqp']['queue'] + '-error', durable=True,
@@ -79,6 +91,7 @@ class Worker:
         await channel.basic_consume(
             self.handle_queued_job,
             queue_name=app_settings['amqp']['queue'])
+        logger.warning(f"Subscribed to queue: {app_settings['amqp']['queue']}")
 
     def cancel(self):
         for task in self._running:

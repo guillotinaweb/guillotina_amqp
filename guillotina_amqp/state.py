@@ -84,7 +84,7 @@ class RedisStateManager:
         cache = await self.get_cache()
         if cache:
             value = data
-            existing = cache.get(self._cache_prefix + task_id)
+            existing = await cache.get(self._cache_prefix + task_id)
             if existing:
                 value = json.loads(existing)
                 value.update(data)
