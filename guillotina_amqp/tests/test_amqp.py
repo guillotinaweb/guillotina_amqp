@@ -57,6 +57,7 @@ async def test_task_commits_data_from_service(amqp_worker, container_requester):
         await state.join(0.01)
         assert amqp_worker.total_run == 1
         assert await state.get_result() == 'done!'
+        await asyncio.sleep(0.1)  # prevent possible race condition here
         resp, status = await requester('GET', '/db/guillotina/foobar')
         assert resp['title'] == 'Foobar written'
 
