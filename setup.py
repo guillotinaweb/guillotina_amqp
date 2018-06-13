@@ -3,7 +3,7 @@ from setuptools import setup
 
 
 try:
-    README = open('README.md').read()
+    README = open('README.rst').read()
 except IOError:
     README = None
 
@@ -12,7 +12,6 @@ setup(
     version='1.0.3.dev0',
     description='Integrate amqp into guillotina',
     long_description=README,
-    long_description_content_type='text/markdown',
     install_requires=[
         'guillotina>=2.1.5',
         'aioamqp',
