@@ -14,7 +14,8 @@ setup(
     long_description=README,
     install_requires=[
         'guillotina>=2.1.5',
-        'aioamqp'
+        'aioamqp',
+        'lru-dict'
     ],
     author='Nathan Van Gheem',
     author_email='vangheem@gmail.com',
@@ -22,8 +23,7 @@ setup(
     packages=find_packages(exclude=['demo']),
     include_package_data=True,
     tests_require=[
-        'pytest',
-        'lru-dict'
+        'pytest'
     ],
     extras_require={
         'test': [
