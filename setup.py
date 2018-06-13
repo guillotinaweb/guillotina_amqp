@@ -3,7 +3,7 @@ from setuptools import setup
 
 
 try:
-    README = open('README.rst').read()
+    README = open('README.md').read()
 except IOError:
     README = None
 
