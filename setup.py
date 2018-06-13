@@ -12,6 +12,7 @@ setup(
     version='1.0.0.dev0',
     description='Integrate amqp into guillotina',
     long_description=README,
+    long_description_content_type='text/markdown',
     install_requires=[
         'guillotina>=2.1.5',
         'aioamqp',
