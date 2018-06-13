@@ -57,7 +57,7 @@ async def heartbeat():
         try:
             for name, connection in app_settings['amqp'].get('connections', {}).items():
                 await connection['protocol'].send_heartbeat()
-        except:
+        except Exception:
             logger.error('Error sending heartbeat', exc_info=True)
 
 
