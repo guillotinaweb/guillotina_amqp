@@ -1,7 +1,8 @@
 1.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Copy request annotation data over as well
+  [vangheem]
 
 
 1.0.3 (2018-06-13)

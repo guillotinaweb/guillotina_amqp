@@ -111,6 +111,7 @@ class Job:
             client_max_size=self.base_request._client_max_size,
             state=self.base_request._state.copy())
         aiotask_context.set('request', request)
+        request.annotations = req_data.get('annotations', {})
 
         if self.data.get('db_id'):
             root = get_utility(IApplication, name='root')
@@ -157,7 +158,6 @@ class Job:
             if 'user' in req_data:
                 login_user(request, req_data['user'])
 
-            logger.warning(f"Running job: {self.data['func']}")
             func = resolve_dotted_name(self.data['func'])
             if hasattr(func, '__real_func__'):
                 # from decorators

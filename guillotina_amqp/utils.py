@@ -26,7 +26,8 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
     req_data = {
         'url': str(_request.url),
         'headers': dict(_request.headers),
-        'method': _request.method
+        'method': _request.method,
+        'annotations': getattr(_request, 'annotations', {})
     }
     try:
         participation = _request.security.participations[0]
@@ -82,7 +83,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             retries += 1
 
 
-async def _run_object_tasks(dotted_func, path, *args, **kwargs):
+async def _run_object_task(dotted_func, path, *args, **kwargs):
     request = get_current_request()
     ob = await navigate_to(request.container, path)
     func = resolve_dotted_name(dotted_func)
@@ -91,5 +92,5 @@ async def _run_object_tasks(dotted_func, path, *args, **kwargs):
 
 async def add_object_task(func, ob, *args, _request=None, _retries=3, **kwargs):
     return await add_task(
-        _run_object_tasks, get_dotted_name(func), get_content_path(ob), *args,
+        _run_object_task, get_dotted_name(func), get_content_path(ob), *args,
         _request=_request, _retries=_retries, **kwargs)
