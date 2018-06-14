@@ -1,4 +1,4 @@
-1.0.4 (unreleased)
+1.0.4 (2018-06-13)
 ------------------
 
 - Copy request annotation data over as well
