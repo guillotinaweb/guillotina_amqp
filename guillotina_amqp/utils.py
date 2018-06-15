@@ -7,6 +7,7 @@ from guillotina.utils import get_dotted_name
 from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp import amqp
+from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 
@@ -54,16 +55,17 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             state = TaskState(task_id)
             dotted_name = get_dotted_name(func)
             logger.info(f'Scheduling task: {task_id}: {dotted_name}')
+            data = json.dumps({
+                'func': dotted_name,
+                'args': args,
+                'kwargs': kwargs,
+                'db_id': getattr(_request, '_db_id', None),
+                'container_id': getattr(_request, '_container_id', None),
+                'req_data': req_data,
+                'task_id': task_id
+            })
             await channel.publish(
-                json.dumps({
-                    'func': dotted_name,
-                    'args': args,
-                    'kwargs': kwargs,
-                    'db_id': getattr(_request, '_db_id', None),
-                    'container_id': getattr(_request, '_container_id', None),
-                    'req_data': req_data,
-                    'task_id': task_id
-                }),
+                data,
                 exchange_name=app_settings['amqp']['exchange'],
                 routing_key=app_settings['amqp']['queue'],
                 properties={
@@ -87,6 +89,8 @@ async def _run_object_task(dotted_func, path, *args, **kwargs):
     request = get_current_request()
     ob = await navigate_to(request.container, path)
     func = resolve_dotted_name(dotted_func)
+    if ITaskDefinition.providedBy(func):
+        func = func.func
     return await func(ob, *args, **kwargs)
 
 

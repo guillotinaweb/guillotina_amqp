@@ -1,7 +1,8 @@
 1.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Be able to add tasks after request and commit
+  [vangheem]
 
 
 1.0.4 (2018-06-13)

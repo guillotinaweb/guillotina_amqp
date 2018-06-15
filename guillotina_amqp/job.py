@@ -13,6 +13,7 @@ from guillotina.transactions import abort
 from guillotina.transactions import commit
 from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
+from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from multidict import CIMultiDict
 from unittest import mock
@@ -128,6 +129,7 @@ class Job:
             if self.data.get('container_id'):
                 container = await context.async_get(self.data['container_id'])
                 if container is None:
+                    import pdb; pdb.set_trace()
                     raise Exception('Could not find container')
                 request._container_id = container.id
                 request.container = container
@@ -159,6 +161,8 @@ class Job:
                 login_user(request, req_data['user'])
 
             func = resolve_dotted_name(self.data['func'])
+            if ITaskDefinition.providedBy(func):
+                func = func.func
             if hasattr(func, '__real_func__'):
                 # from decorators
                 func = func.__real_func__
