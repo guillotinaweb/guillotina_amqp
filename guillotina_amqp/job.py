@@ -129,7 +129,6 @@ class Job:
             if self.data.get('container_id'):
                 container = await context.async_get(self.data['container_id'])
                 if container is None:
-                    import pdb; pdb.set_trace()
                     raise Exception('Could not find container')
                 request._container_id = container.id
                 request.container = container
