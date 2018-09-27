@@ -31,6 +31,9 @@ class DummyStateManager:
     async def get(self, task_id):
         pass
 
+    async def list(self):
+        return []
+
 
 @configure.utility(provides=IStateManagerUtility, name='memory')
 class MemoryStateManager:
@@ -46,6 +49,9 @@ class MemoryStateManager:
             self._data[task_id] = data
         else:
             self._data[task_id].update(data)
+
+    async def list(self):
+        return self._data
 
     async def get(self, task_id):
         if task_id in self._data:
@@ -101,6 +107,11 @@ class RedisStateManager:
                 value.update(data)
             await cache.set(
                 self._cache_prefix + task_id, json.dumps(value), expire=60 * 60 * 1)
+
+    async def list(self):
+        cache = await self.get_cache()
+        values = await cache.keys(self._cache_prefix + '*')
+        return [x.decode() for x in values]
 
     async def get(self, task_id):
         cache = await self.get_cache()
