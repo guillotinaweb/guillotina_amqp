@@ -73,13 +73,19 @@ def get_state_manager():
 
 @configure.utility(provides=IStateManagerUtility, name='redis')
 class RedisStateManager:
-    '''
-    Meaningless for anyting other than tests
-    '''
     _cache_prefix = 'amqpjobs-'
 
     def __init__(self):
         self._cache = None
+
+    # async def reader(ch):
+    #     while (await ch.wait_message()):
+    #         msg = await ch.get_json()
+    #         print("Got Message:", msg)
+
+    # async def cancel_task(self, task_id):
+    #     cache = await self.get_cache()
+    #     await cache.publish_json('chan:amqp-state', ['cancel', task_id])
 
     async def get_cache(self):
         if self._cache == _EMPTY:
@@ -111,12 +117,12 @@ class RedisStateManager:
     async def list(self):
         cache = await self.get_cache()
         values = await cache.keys(self._cache_prefix + '*')
-        return [x.decode() for x in values]
+        return [x.decode().replace(self._cache_prefix, '') for x in values]
 
     async def get(self, task_id):
         cache = await self.get_cache()
         if cache:
-            value = cache.get(self._cache_prefix + task_id)
+            value = await cache.get(self._cache_prefix + task_id)
             if value:
                 return json.loads(value)
 

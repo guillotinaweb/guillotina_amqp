@@ -90,6 +90,11 @@ class Worker:
             queue_name=app_settings['amqp']['queue'])
         logger.warning(f"Subscribed to queue: {app_settings['amqp']['queue']}")
 
+    def cancel_task(self, task_id):
+        for task in self._running:
+            if task._job.task_id == task_id:
+                task.cancel()
+
     def cancel(self):
         for task in self._running:
             task.cancel()
