@@ -74,6 +74,7 @@ class RedisStateManager:
 
     def __init__(self):
         self._cache = None
+        self.worker_id = 'xxx'
 
     async def get_cache(self):
         if self._cache == _EMPTY:
@@ -109,6 +110,16 @@ class RedisStateManager:
             if value:
                 return json.loads(value)
 
+    async def list(self):
+        # Exception is raised if no cache is found
+        cache = await self.get_cache()
+
+        async for key in await cache.iscan(f'{self._cache_prefix}*'):
+            yield key
+
+    async def lock(self, task_id, timeout=None, ttl=None):
+        cache = await self.get_cache()
+        coro = await cache.setnx(f'lock:{task_id}', self.worker_id)
 
 class TaskState:
 
