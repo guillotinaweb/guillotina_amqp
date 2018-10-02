@@ -11,7 +11,6 @@ import os
 
 
 logger = logging.getLogger('guillotina_amqp')
-logging.basicConfig(level=logging.INFO)
 
 class EventLoopWatchdog(threading.Thread):
     def __init__(self, loop, timeout):
@@ -21,24 +20,27 @@ class EventLoopWatchdog(threading.Thread):
         self._time = loop.time()
 
     def check(self):
-        _old_time, self._time = self._time, self.loop.time()
-        diff = self._time - _old_time
+        diff = self.loop.time() - self._time
+
         if diff > self.timeout:
             logger.error(f'Exiting worker because no activity in {diff} seconds')
             os._exit(1)
         else:
-            threading.Timer(self.timeout/2, self.check).start()
+            threading.Timer(self.timeout/4, self.check).start()
+            logger.debug(f'Last refreshed watchdog was {diff}s. ago')
+
+    # This method just to trigger a context switching in the event loop in
+    # case nothing is running. Most likely is not even needed since RMQ/Redis
+    # drivers also are running in the same loop.
+    async def probe(self):
+        while True:
+            await asyncio.sleep(10)
+            self._time = self.loop.time()
 
     def run(self):
-        threading.Timer(10, self.check).start()
+        self.loop.create_task(self.probe())
+        threading.Timer(self.timeout/4, self.check).start()
 
-
-# This method just to trigger a context switching in the event loop in
-# case nothing is running. Most likely is not even needed since RMQ/Redis
-# drivers also are running in the same loop.
-async def probe(timeout):
-    while True:
-        await asyncio.sleep(timeout)
 
 class WorkerCommand(Command):
     description = 'AMQP worker'
@@ -56,7 +58,6 @@ class WorkerCommand(Command):
         await worker.start()
         if arguments.auto_kill_timeout > 0:
             timeout = arguments.auto_kill_timeout
-            self.get_loop().create_task(probe(timeout/2))
             t = EventLoopWatchdog(self.get_loop(), timeout)
             t.start()
 
