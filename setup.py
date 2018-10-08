@@ -34,7 +34,7 @@ setup(
             'pytest-asyncio>=0.8.0',
             'pytest-aiohttp',
             'pytest-cov',
-            'coverage==4.0.3'
+            'coverage>=4.4'
         ]
     },
     license='BSD',
