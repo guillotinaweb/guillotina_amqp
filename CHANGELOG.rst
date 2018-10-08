@@ -1,4 +1,4 @@
-1.0.7 (unreleased)
+1.0.7 (2018-10-08)
 ------------------
 
 - Provide `@task-status/{id}` endpoint
