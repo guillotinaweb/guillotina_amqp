@@ -1,7 +1,11 @@
 1.0.7 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Provide `@task-status/{id}` endpoint
+  [vangheem]
+
+- Fix port references
+  [vangheem]
 
 
 1.0.6 (2018-06-15)

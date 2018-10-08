@@ -105,7 +105,7 @@ class RedisStateManager:
     async def get(self, task_id):
         cache = await self.get_cache()
         if cache:
-            value = cache.get(self._cache_prefix + task_id)
+            value = await cache.get(self._cache_prefix + task_id)
             if value:
                 return json.loads(value)
 

@@ -42,7 +42,8 @@ class Worker:
         task_id = data['task_id']
         dotted_name = data['func']
         await self.state_manager.update(task_id, {
-            'status': 'scheduled'
+            'status': 'scheduled',
+            'updated': time.time()
         })
         logger.info(f'Received task: {task_id}: {dotted_name}')
         while len(self._running) >= self._max_size:

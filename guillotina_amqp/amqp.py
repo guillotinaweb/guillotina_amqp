@@ -89,11 +89,11 @@ async def connect(**kwargs):
     conn_factory = resolve_dotted_name(
         ampq_settings.get('connection_factory', aioamqp.connect))
     transport, protocol = await conn_factory(
-        ampq_settings['host'],
-        ampq_settings['port'],
-        ampq_settings['login'],
-        ampq_settings['password'],
-        ampq_settings['vhost'],
+        host=ampq_settings['host'],
+        port=ampq_settings['port'],
+        login=ampq_settings['login'],
+        password=ampq_settings['password'],
+        virtualhost=ampq_settings['vhost'],
         heartbeat=800,
         **kwargs
     )

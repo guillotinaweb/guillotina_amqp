@@ -22,6 +22,7 @@ from zope.interface import alsoProvides
 
 import aiotask_context
 import logging
+import time
 import traceback
 import yarl
 
@@ -151,7 +152,8 @@ class Job:
 
         try:
             await self.state_manager.update(self.data['task_id'], {
-                'status': 'running'
+                'status': 'running',
+                'updated': time.time()
             })
             request = await self.create_request()
 
@@ -172,6 +174,7 @@ class Job:
                 delivery_tag=self.envelope.delivery_tag)
             await self.state_manager.update(self.data['task_id'], {
                 'status': 'finished',
+                'updated': time.time(),
                 'result': result
             })
             logger.info(f'Finished task: {task_id}: {dotted_name}')
@@ -182,6 +185,7 @@ class Job:
                 multiple=False, requeue=False)
             await self.state_manager.update(self.data['task_id'], {
                 'status': 'errored',
+                'updated': time.time(),
                 'error': traceback.format_exc()
             })
         finally:

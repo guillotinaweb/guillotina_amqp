@@ -14,6 +14,7 @@ from guillotina_amqp.state import TaskState
 import aioamqp
 import json
 import logging
+import time
 import uuid
 
 
@@ -74,7 +75,8 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             )
             state_manager = get_state_manager()
             await state_manager.update(task_id, {
-                'status': 'scheduled'
+                'status': 'scheduled',
+                'updated': time.time()
             })
             logger.info(f'Scheduled task: {task_id}: {dotted_name}')
             return state
@@ -94,7 +96,8 @@ async def _run_object_task(dotted_func, path, *args, **kwargs):
     return await func(ob, *args, **kwargs)
 
 
-async def add_object_task(func, ob, *args, _request=None, _retries=3, **kwargs):
+async def add_object_task(callable=None, ob=None, *args,
+                          _request=None, _retries=3, **kwargs):
     return await add_task(
-        _run_object_task, get_dotted_name(func), get_content_path(ob), *args,
+        _run_object_task, get_dotted_name(callable), get_content_path(ob), *args,
         _request=_request, _retries=_retries, **kwargs)
