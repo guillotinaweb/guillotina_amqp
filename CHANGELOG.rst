@@ -1,4 +1,4 @@
-1.0.8 (unreleased)
+1.0.8 (2018-10-09)
 ------------------
 
 - Retry on conflict error
