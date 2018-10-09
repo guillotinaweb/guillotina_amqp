@@ -1,7 +1,8 @@
 1.0.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Retry on conflict error
+  [vangheem]
 
 
 1.0.7 (2018-10-08)

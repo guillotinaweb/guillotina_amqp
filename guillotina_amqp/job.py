@@ -1,4 +1,5 @@
 from aiohttp import test_utils
+from guillotina.exceptions import ConflictError
 from aiohttp.helpers import noop
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
@@ -178,6 +179,28 @@ class Job:
                 'result': result
             })
             logger.info(f'Finished task: {task_id}: {dotted_name}')
+        except ConflictError:
+            logger.warning(f'Conflict error detected, retrying')
+            data = await self.state_manager.get(self.data['task_id'])
+            retries = data.get('retries', 0)
+            if retries <= 3:
+                await self.channel.basic_client_nack(
+                    delivery_tag=self.envelope.delivery_tag,
+                    multiple=False, requeue=True)
+                await self.state_manager.update(self.data['task_id'], {
+                    'status': 'conflict',
+                    'updated': time.time(),
+                    'retries': retries + 1
+                })
+            else:
+                await self.channel.basic_client_nack(
+                    delivery_tag=self.envelope.delivery_tag,
+                    multiple=False, requeue=False)
+                await self.state_manager.update(self.data['task_id'], {
+                    'status': 'error',
+                    'updated': time.time(),
+                    'error': 'exhausted retry attempts'
+                })
         except Exception:
             logger.warning(f'Error executing task: {self.data}', exc_info=True)
             await self.channel.basic_client_nack(
