@@ -2,7 +2,7 @@ from .decorators import object_task  # noqa
 from .decorators import task  # noqa
 from .utils import add_object_task  # noqa
 from .utils import add_task  # noqa
-
+from .api import *  # noqa
 
 app_settings = {
     "amqp": {

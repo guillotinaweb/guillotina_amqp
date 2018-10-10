@@ -7,7 +7,11 @@ from .exceptions import TaskNotFoundException
                    permission='guillotina.AccessContent')
 async def list_tasks(context, request):
     mngr = get_state_manager()
-    return await mngr.list()
+
+    ret = []
+    async for el in mngr.list():
+        ret.append(el)
+    return ret
 
 
 @configure.service(method='GET', name='@amqp-info',
