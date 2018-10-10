@@ -30,8 +30,7 @@ class EventLoopWatchdog(threading.Thread):
             logger.debug(f'Last refreshed watchdog was {diff}s. ago')
 
     # This method just to trigger a context switching in the event loop in
-    # case nothing is running. Most likely is not even needed since RMQ/Redis
-    # drivers also are running in the same loop.
+    # and sense the delta between the ideal timeout (10s)
     async def probe(self):
         while True:
             await asyncio.sleep(10)
@@ -53,13 +52,14 @@ class WorkerCommand(Command):
         return parser
 
     async def run(self, arguments, settings, app):
+        timeout = arguments.auto_kill_timeout
         aiotask_context.set('request', self.request)
         worker = Worker(self.request, self.get_loop())
         await worker.start()
-        if arguments.auto_kill_timeout > 0:
-            timeout = arguments.auto_kill_timeout
-            t = EventLoopWatchdog(self.get_loop(), timeout)
-            t.start()
+        if timeout > 0:
+            # We need to run this outside the main loop and the current thread
+            thread = EventLoopWatchdog(self.get_loop(), timeout)
+            thread.start()
 
         while True:
             # make this run forever...
