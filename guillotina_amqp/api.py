@@ -1,5 +1,5 @@
 from guillotina import configure
-from .state import get_state_manager
+from .state import get_state_manager, TaskState
 from .exceptions import TaskNotFoundException
 
 
@@ -31,7 +31,8 @@ async def cancel_task(context, request):
     mngr = get_state_manager()
     task_id = request.rel_url.query.get('task_id')
 
-    return await mngr.list()
+    task = TaskState(task_id)
+    return await task.cancel()
 
 
 @configure.service(method='GET', name='@amqp-stats',

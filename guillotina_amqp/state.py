@@ -108,7 +108,7 @@ class RedisStateManager:
     async def get(self, task_id):
         cache = await self.get_cache()
         if cache:
-            value = cache.get(self._cache_prefix + task_id)
+            value = await cache.get(self._cache_prefix + task_id)
             if value:
                 return json.loads(value)
 
@@ -117,9 +117,9 @@ class RedisStateManager:
         cache = await self.get_cache()
 
         async for key in cache.iscan(match=f'{self._cache_prefix}*'):
-            yield key.decode()
+            yield key.decode().replace(self._cache_prefix, '')
 
-    async def adquire(self, task_id, ttl=None):
+    async def acquire(self, task_id, ttl=None):
         cache = await self.get_cache()
         resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
         if not resp:
@@ -195,12 +195,12 @@ class TaskState:
         util = get_state_manager()
         await util.cancel(self.task_id)
 
-    async def adquire(self, timeout=None):
+    async def acquire(self, timeout=None):
         util = get_state_manager()
         elapsed = time.time()
 
         while True:
-            locked, ttl = await util.adquire(self.task_id, 120)
+            locked, ttl = await util.acquire(self.task_id, 120)
             if locked:
                 return True
 
