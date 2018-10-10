@@ -10,6 +10,8 @@ from zope.interface.interfaces import ComponentLookupError
 import asyncio
 import json
 import logging
+import time
+import uuid
 
 
 try:
@@ -74,7 +76,7 @@ class RedisStateManager:
 
     def __init__(self):
         self._cache = None
-        self.worker_id = 'xxx'
+        self.worker_id = uuid.uuid4().hex
 
     async def get_cache(self):
         if self._cache == _EMPTY:
@@ -117,9 +119,31 @@ class RedisStateManager:
         async for key in await cache.iscan(f'{self._cache_prefix}*'):
             yield key
 
-    async def lock(self, task_id, timeout=None, ttl=None):
+    async def adquire(self, task_id, ttl=None):
         cache = await self.get_cache()
-        coro = await cache.setnx(f'lock:{task_id}', self.worker_id)
+        resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
+        if not resp:
+            remaining = await cache.ttl(f'lock:{task_id}')
+            return False, remaining
+        elif ttl:
+            await cache.expire(f'lock:{task_id}', ttl)
+        return True, ttl
+
+    async def release(self, task_id):
+        cache = await self.get_cache()
+        resp = await cache.delete(f'lock:{task_id}')
+        return resp > 0
+
+    async def cancel(self, task_id):
+        cache = await self.get_cache()
+        current_time = time.time()
+        resp = await cache.zadd(f'{self._cache_prefix}cancel',
+                                current_time, task_id)
+        return resp > 0
+
+    async def clean_cancelled(self, task_id):
+        ...
+
 
 class TaskState:
 
@@ -166,3 +190,26 @@ class TaskState:
         if data.get('status') not in ('finished', 'errored'):
             raise TaskNotFinishedException(self.task_id)
         return data.get('result')
+
+    async def cancel(self):
+        util = get_state_manager()
+        await util.cancel(self.task_id)
+
+    async def adquire(self, timeout=None):
+        util = get_state_manager()
+        elapsed = time.time()
+
+        while True:
+            locked, ttl = await util.adquire(self.task_id, 120)
+            if locked:
+                return True
+
+            if (time.time() - elapsed) > timeout:
+                return False
+
+            if not locked and ttl:
+                await asyncio.sleep(ttl)
+
+    async def release(self):
+        util = get_state_manager()
+        await util.release(self.task_id)

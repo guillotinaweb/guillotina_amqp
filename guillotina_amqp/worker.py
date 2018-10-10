@@ -98,3 +98,6 @@ class Worker:
     async def join(self):
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
+
+    async def refresh_status(self):
+        pass
