@@ -116,8 +116,8 @@ class RedisStateManager:
         # Exception is raised if no cache is found
         cache = await self.get_cache()
 
-        async for key in await cache.iscan(f'{self._cache_prefix}*'):
-            yield key
+        async for key in cache.iscan(match=f'{self._cache_prefix}*'):
+            yield key.decode()
 
     async def adquire(self, task_id, ttl=None):
         cache = await self.get_cache()
