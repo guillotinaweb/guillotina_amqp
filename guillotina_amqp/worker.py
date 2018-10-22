@@ -1,7 +1,7 @@
 from guillotina import app_settings
 from guillotina_amqp import amqp
 from guillotina_amqp.job import Job
-from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import get_state_manager, TaskState
 
 import asyncio
 import json
@@ -21,6 +21,7 @@ class Worker:
         self.request = request
         self.loop = loop
         self._running = []
+        self._done = []
         self._max_size = max_size
         self._closing = False
         self._state_manager = None
@@ -51,6 +52,14 @@ class Worker:
             self.last_activity = time.time()
         self.last_activity = time.time()
         job = Job(self.request, data, channel, envelope)
+
+        _id = job.data['task_id']
+        ts = TaskState(_id)
+        res = await ts.acquire(timeout=120)
+        if not res:
+            raise Exception()
+
+
         task = self.loop.create_task(job())
         task._job = job
         job.task = task
@@ -58,7 +67,7 @@ class Worker:
         task.add_done_callback(self._done_callback)
 
     def _done_callback(self, task):
-        self._running.remove(task)
+        self._done.append(task)
         self.total_run += 1
 
     async def start(self):
@@ -89,6 +98,9 @@ class Worker:
         await channel.basic_consume(
             self.handle_queued_job,
             queue_name=app_settings['amqp']['queue'])
+
+        asyncio.ensure_future(self.update_status())
+
         logger.warning(f"Subscribed to queue: {app_settings['amqp']['queue']}")
 
     def cancel(self):
@@ -99,5 +111,27 @@ class Worker:
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
 
-    async def refresh_status(self):
-        pass
+    async def is_cancelled(self, task_id):
+        return True
+
+    async def update_status(self):
+        while True:
+            await asyncio.sleep(20)
+            for task in self._running:
+                _id = task._job.data['task_id']
+                ts = TaskState(_id)
+                if task in self._done:
+                    self._running.remove(task)
+                    await ts.release()
+                else:
+                    result = await ts.acquire()
+                    if not result:
+                        # kill the task
+                        task.cancel()
+
+            async for val in self.state_manager.cancelation_list():
+                for task in self._running:
+                    _id = task._job.data['task_id']
+                    if _id == val:
+                        task.cancel()
+                        await self._state_manager.clean_cancelled(_id)

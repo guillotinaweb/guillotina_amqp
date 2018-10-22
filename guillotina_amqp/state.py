@@ -123,7 +123,10 @@ class RedisStateManager:
         cache = await self.get_cache()
         resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
         if not resp:
+            worker_id = await cache.get(f'lock:{task_id}')
             remaining = await cache.ttl(f'lock:{task_id}')
+            if worker_id == self.worker_id:
+                return True, remaining
             return False, remaining
         elif ttl:
             await cache.expire(f'lock:{task_id}', ttl)
@@ -140,6 +143,12 @@ class RedisStateManager:
         resp = await cache.zadd(f'{self._cache_prefix}cancel',
                                 current_time, task_id)
         return resp > 0
+
+    async def cancelation_list(self):
+        cache = await self.get_cache()
+
+        async for val, score in cache.izscan(f'{self._cache_prefix}cancel'):
+            yield val.decode()
 
     async def clean_cancelled(self, task_id):
         ...
@@ -204,7 +213,7 @@ class TaskState:
             if locked:
                 return True
 
-            if (time.time() - elapsed) > timeout:
+            if timeout and ((time.time() - elapsed) > timeout):
                 return False
 
             if not locked and ttl:
