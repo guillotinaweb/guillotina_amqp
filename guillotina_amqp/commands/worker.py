@@ -4,36 +4,49 @@ from guillotina_amqp.worker import Worker
 import aiotask_context
 import asyncio
 import logging
-import sys
-import time
 import threading
 import os
 
 
 logger = logging.getLogger('guillotina_amqp')
 
+
 class EventLoopWatchdog(threading.Thread):
+    """Takes care of exiting worker after specified loop no-activity
+    timeout for the worker loop.
+
+    This prevents a task from taking the asynio loop forever and
+    preventing other tasks to run. If a task hangs, the watchdog will
+    exit the worker and unfinished jobs will be retaken by other
+    workers.
+
+    """
     def __init__(self, loop, timeout):
         super().__init__()
         self.loop = loop
         self.timeout = timeout * 60  # In seconds
+        # Start time
         self._time = loop.time()
 
     def check(self):
+        # Elapsed time since last update
         diff = self.loop.time() - self._time
 
         if diff > self.timeout:
             logger.error(f'Exiting worker because no activity in {diff} seconds')
             os._exit(1)
         else:
+            # Schedule a check again
             threading.Timer(self.timeout/4, self.check).start()
             logger.debug(f'Last refreshed watchdog was {diff}s. ago')
 
-    # This method just to trigger a context switching in the event loop in
-    # and sense the delta between the ideal timeout (10s)
     async def probe(self):
+        """This method just to trigger a context switching in the event loop
+        in and sense the delta between the ideal timeout (10s)
+        """
         while True:
             await asyncio.sleep(10)
+            # Update the watchdog time
             self._time = self.loop.time()
 
     def run(self):
@@ -42,6 +55,7 @@ class EventLoopWatchdog(threading.Thread):
 
 
 class WorkerCommand(Command):
+    """Guillotina command to start a worker"""
     description = 'AMQP worker'
 
     def get_parser(self):

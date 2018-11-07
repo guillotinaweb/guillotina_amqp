@@ -30,10 +30,29 @@ testing.configure_with(base_settings_configurator)
 
 @pytest.fixture('function')
 def amqp_worker(loop):
+    # Create worker
     _worker = Worker(loop=loop)
     loop.run_until_complete(_worker.start())
+
     yield _worker
+
+    # Tear down worker
     for conn in [v for v in app_settings['amqp'].get('connections', []).values()]:
         loop.run_until_complete(conn['protocol'].close())
     _worker.cancel()
     app_settings['amqp']['connections'] = {}
+
+
+@pytest.fixture('function')
+def redis_enabled(redis, dummy_request):
+    app_settings['amqp']['persistent_manager'] = 'redis'
+    app_settings['redis_prefix_key'] = 'amqpjobs-'
+    app_settings.update({"redis":{
+        'host': redis[0],
+        'port': redis[1],
+        'pool': {
+            "minsize": 1,
+            "maxsize": 5,
+        },
+    }})
+    yield redis

@@ -5,7 +5,6 @@ from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
-from zope.interface.interfaces import ComponentLookupError
 
 import asyncio
 import json
@@ -24,24 +23,15 @@ except ImportError:
 logger = logging.getLogger('guillotina_amqp')
 
 
-@configure.utility(provides=IStateManagerUtility, name='dummy')
-class DummyStateManager:
-
-    async def update(self, task_id, data):
-        pass
-
-    async def get(self, task_id):
-        pass
-
 
 @configure.utility(provides=IStateManagerUtility, name='memory')
 class MemoryStateManager:
     '''
     Meaningless for anyting other than tests
     '''
-
     def __init__(self, size=5):
         self._data = LRU(size)
+        self._canceled = set()
 
     async def update(self, task_id, data):
         if task_id not in self._data:
@@ -53,24 +43,67 @@ class MemoryStateManager:
         if task_id in self._data:
             return self._data[task_id]
 
+    async def list(self):
+        for task_id in self._data:
+            yield task_id
+
+    async def acquire(self, task_id, ttl=None):
+        if task_id in self._locks:
+            if self._locks[task_id].locked():
+                raise Exception(f'Already acquired {task_id}')
+
+        from guillotina_amqp.utils import TimeoutLock
+        lock = TimeoutLock()
+        lock.acquire(timeout=ttl)
+        self._locks[task_id] = lock
+
+    async def release(self, task_id):
+        if task_id not in self._locks:
+            # No need to do here
+            return
+
+        if not self._locks[task_id].locked():
+            self._locks.pop(task_id)
+            return
+
+        # Release lock
+        self._locks[task_id].release()
+        self._locks.pop(task_id)
+
+    async def cancel(self, task_id):
+        self._canceled.update({task_id})
+        return True
+
+    async def cancelation_list(self):
+        for task_id in self._canceled:
+            yield task_id
+
+    async def clean_canceled(self, task_id):
+        try:
+            self._canceled.remove(task_id)
+        except KeyError:
+            # Task id wasn't canceled
+            pass
+
+
 
 _EMPTY = object()
 
 
 def get_state_manager():
-    try:
-        return get_utility(
-            IStateManagerUtility,
-            name=app_settings['amqp'].get('persistent_manager', 'dummy'))
-    except ComponentLookupError:
-        from guillotina_amqp.state import DummyStateManager
-        return DummyStateManager()
+    """Factory that gets the configured state manager.
+
+    Currently we have two implementations: memory | redis
+    """
+    return get_utility(
+        IStateManagerUtility,
+        name=app_settings['amqp'].get('persistent_manager', 'memory')
+    )
 
 
 @configure.utility(provides=IStateManagerUtility, name='redis')
 class RedisStateManager:
-    '''
-    Meaningless for anyting other than tests
+    '''Implementation of the IStateManagerUtility with Redis
     '''
     _cache_prefix = 'amqpjobs-'
 
@@ -115,7 +148,6 @@ class RedisStateManager:
     async def list(self):
         # Exception is raised if no cache is found
         cache = await self.get_cache()
-
         async for key in cache.iscan(match=f'{self._cache_prefix}*'):
             yield key.decode().replace(self._cache_prefix, '')
 
@@ -146,12 +178,13 @@ class RedisStateManager:
 
     async def cancelation_list(self):
         cache = await self.get_cache()
-
         async for val, score in cache.izscan(f'{self._cache_prefix}cancel'):
             yield val.decode()
 
-    async def clean_cancelled(self, task_id):
-        ...
+    async def clean_canceled(self, task_id):
+        cache = await self.get_cache()
+        resp = await cache.zrem(f'{self._cache_prefix}cancel', task_id)
+        return resp > 0
 
 
 class TaskState:

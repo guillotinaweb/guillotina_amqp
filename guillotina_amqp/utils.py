@@ -15,12 +15,18 @@ import aioamqp
 import json
 import logging
 import uuid
+import threading
+from contextlib import contextmanager
 
 
 logger = logging.getLogger('guillotina_amqp')
 
 
 async def add_task(func, *args, _request=None, _retries=3, **kwargs):
+    """Given a function and its arguments, it adds it as a task to be ran
+    by workers.
+    """
+    # Get the request and prepare request data
     if _request is None:
         _request = get_current_request()
 
@@ -49,6 +55,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
 
     retries = 0
     while True:
+        # Get the rabbitmq connection
         channel, transport, protocol = await amqp.get_connection()
         try:
             task_id = str(uuid.uuid4())
@@ -64,6 +71,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
                 'req_data': req_data,
                 'task_id': task_id
             })
+            # Publish task data on rabbitmq
             await channel.publish(
                 data,
                 exchange_name=app_settings['amqp']['exchange'],
@@ -72,6 +80,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
                     'delivery_mode': 2
                 }
             )
+            # Update tasks's global state
             state_manager = get_state_manager()
             await state_manager.update(task_id, {
                 'status': 'scheduled'
@@ -95,6 +104,27 @@ async def _run_object_task(dotted_func, path, *args, **kwargs):
 
 
 async def add_object_task(func, ob, *args, _request=None, _retries=3, **kwargs):
+    """
+    Allows to run functions on container objects
+    """
     return await add_task(
         _run_object_task, get_dotted_name(func), get_content_path(ob), *args,
         _request=_request, _retries=_retries, **kwargs)
+
+
+class TimeoutLock(object):
+    def __init__(self):
+        self._lock = threading.Lock()
+
+    def acquire(self, blocking=True, timeout=-1):
+        return self._lock.acquire(blocking, timeout)
+
+    @contextmanager
+    def acquire_timeout(self, timeout):
+        result = self._lock.acquire(timeout=timeout)
+        yield result
+        if result:
+            self._lock.release()
+
+    def release(self):
+        self._lock.release()

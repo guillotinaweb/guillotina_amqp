@@ -30,6 +30,9 @@ logger = logging.getLogger('guillotina_amqp')
 
 
 def login_user(request, user_data):
+    """Logs user in to guillotina so the job has the correct access
+
+    """
     request.security = Interaction(request)
     participation = GuillotinaParticipation(request)
     participation.interaction = None
@@ -60,6 +63,10 @@ class EmptyPayload:
 
 
 class Job:
+    """Job objects are responsible for running the actual functions that
+    were configured for. They ack/nack rabbitmq when job is finished, and publish
+
+    """
 
     def __init__(self, base_request, data, channel, envelope):
         if base_request is None:
@@ -150,26 +157,32 @@ class Job:
         logger.info(f'Running task: {task_id}: {dotted_name}')
 
         try:
+            # Update status
             await self.state_manager.update(self.data['task_id'], {
                 'status': 'running'
             })
+            # Clone request for task
             request = await self.create_request()
 
             req_data = self.data['req_data']
             if 'user' in req_data:
                 login_user(request, req_data['user'])
 
+            # Parse the function to run
             func = resolve_dotted_name(self.data['func'])
             if ITaskDefinition.providedBy(func):
                 func = func.func
             if hasattr(func, '__real_func__'):
                 # from decorators
                 func = func.__real_func__
+            # Run the actual function
             result = await func(*self.data['args'], **self.data['kwargs'])
             await commit(request)
             committed = True
+            # ACK rabbitmq: will make task disappear from rabbitmq
             await self.channel.basic_client_ack(
                 delivery_tag=self.envelope.delivery_tag)
+            # Update status
             await self.state_manager.update(self.data['task_id'], {
                 'status': 'finished',
                 'result': result
