@@ -3,6 +3,8 @@ from guillotina import configure
 from guillotina.component import get_utility
 from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
+from guillotina_amqp.exceptions import TaskAlreadyAcquired
+
 from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
 
@@ -11,6 +13,7 @@ import json
 import logging
 import time
 import uuid
+from threading import Lock
 
 
 try:
@@ -31,6 +34,7 @@ class MemoryStateManager:
     '''
     def __init__(self, size=5):
         self._data = LRU(size)
+        self._locks = {}
         self._canceled = set()
 
     async def update(self, task_id, data):
@@ -44,18 +48,28 @@ class MemoryStateManager:
             return self._data[task_id]
 
     async def list(self):
-        for task_id in self._data:
+        for task_id in self._data.keys():
             yield task_id
 
     async def acquire(self, task_id, ttl=None):
-        if task_id in self._locks:
-            if self._locks[task_id].locked():
-                raise Exception(f'Already acquired {task_id}')
-
-        from guillotina_amqp.utils import TimeoutLock
-        lock = TimeoutLock()
-        lock.acquire(timeout=ttl)
+        already_locked = await self._locked(task_id)
+        if already_locked:
+            raise TaskAlreadyAcquired(task_id)
+        # Set new lock
+        if ttl:
+            from guillotina_amqp.utils import TimeoutLock
+            lock = TimeoutLock()
+            lock.acquire(timeout=ttl)
+        else:
+            lock = Lock()
+            lock.acquire()
         self._locks[task_id] = lock
+
+    async def _locked(self, task_id):
+        if task_id not in self._locks:
+            return False
+
+        return self._locks[task_id].locked()
 
     async def release(self, task_id):
         if task_id not in self._locks:
@@ -136,7 +150,7 @@ class RedisStateManager:
                 value = json.loads(existing)
                 value.update(data)
             await cache.set(
-                self._cache_prefix + task_id, json.dumps(value), expire=60 * 60 * 1)
+                self._cache_prefix + task_id, json.dumps(value))
 
     async def get(self, task_id):
         cache = await self.get_cache()
@@ -146,7 +160,6 @@ class RedisStateManager:
                 return json.loads(value)
 
     async def list(self):
-        # Exception is raised if no cache is found
         cache = await self.get_cache()
         async for key in cache.iscan(match=f'{self._cache_prefix}*'):
             yield key.decode().replace(self._cache_prefix, '')
@@ -155,14 +168,9 @@ class RedisStateManager:
         cache = await self.get_cache()
         resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
         if not resp:
-            worker_id = await cache.get(f'lock:{task_id}')
-            remaining = await cache.ttl(f'lock:{task_id}')
-            if worker_id == self.worker_id:
-                return True, remaining
-            return False, remaining
+            raise TaskAlreadyAcquired(task_id)
         elif ttl:
             await cache.expire(f'lock:{task_id}', ttl)
-        return True, ttl
 
     async def release(self, task_id):
         cache = await self.get_cache()
@@ -237,20 +245,15 @@ class TaskState:
         util = get_state_manager()
         await util.cancel(self.task_id)
 
-    async def acquire(self, timeout=None):
+    async def acquire(self):
         util = get_state_manager()
-        elapsed = time.time()
-
-        while True:
-            locked, ttl = await util.acquire(self.task_id, 120)
-            if locked:
-                return True
-
-            if timeout and ((time.time() - elapsed) > timeout):
-                return False
-
-            if not locked and ttl:
-                await asyncio.sleep(ttl)
+        try:
+            await util.acquire(self.task_id, 120)
+        except TaskAlreadyAcquired:
+            logger.warning(f'Task {task_id} is already taken')
+            return False
+        else:
+            return True
 
     async def release(self):
         util = get_state_manager()

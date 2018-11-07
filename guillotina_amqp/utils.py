@@ -22,6 +22,8 @@ from contextlib import contextmanager
 logger = logging.getLogger('guillotina_amqp')
 
 
+async def cancel_task(task_id, _retries=3):
+
 async def add_task(func, *args, _request=None, _retries=3, **kwargs):
     """Given a function and its arguments, it adds it as a task to be ran
     by workers.

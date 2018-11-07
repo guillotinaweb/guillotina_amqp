@@ -43,6 +43,19 @@ def amqp_worker(loop):
     app_settings['amqp']['connections'] = {}
 
 
+@pytest.fixture('function', params=[
+    {'redis_up': False},
+    {'redis_up': True}
+])
+def configured_state_manager(request, redis_enabled, redis_disabled):
+    if request.param.get('redis_up'):
+        # Redis
+        yield redis_enabled
+    else:
+        # Memory
+        yield redis_disabled
+
+
 @pytest.fixture('function')
 def redis_enabled(redis, dummy_request):
     app_settings['amqp']['persistent_manager'] = 'redis'
@@ -56,3 +69,9 @@ def redis_enabled(redis, dummy_request):
         },
     }})
     yield redis
+
+
+@pytest.fixture('function')
+def redis_disabled(dummy_request):
+    app_settings['amqp']['persistent_manager'] = 'memory'
+    yield
