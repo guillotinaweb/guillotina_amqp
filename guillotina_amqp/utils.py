@@ -22,7 +22,14 @@ from contextlib import contextmanager
 logger = logging.getLogger('guillotina_amqp')
 
 
-async def cancel_task(task_id, _retries=3):
+async def cancel_task(task_id):
+    """It cancels a task by id. Returns wether it could be cancelled.
+
+    """
+    task = TaskState(task_id)
+    success = await task.cancel()
+    return success
+
 
 async def add_task(func, *args, _request=None, _retries=3, **kwargs):
     """Given a function and its arguments, it adds it as a task to be ran
@@ -130,3 +137,6 @@ class TimeoutLock(object):
 
     def release(self):
         self._lock.release()
+
+    def locked(self):
+        return self._lock.locked()

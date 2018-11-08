@@ -14,7 +14,7 @@ import logging
 import time
 import uuid
 from threading import Lock
-
+import copy
 
 try:
     import aioredis
@@ -89,7 +89,8 @@ class MemoryStateManager:
         return True
 
     async def cancelation_list(self):
-        for task_id in self._canceled:
+        canceled = copy.deepcopy(self._canceled)
+        for task_id in canceled:
             yield task_id
 
     async def clean_canceled(self, task_id):
@@ -243,14 +244,14 @@ class TaskState:
 
     async def cancel(self):
         util = get_state_manager()
-        await util.cancel(self.task_id)
+        return await util.cancel(self.task_id)
 
-    async def acquire(self):
+    async def acquire(self, timeout=120):
         util = get_state_manager()
         try:
-            await util.acquire(self.task_id, 120)
+            await util.acquire(self.task_id, timeout)
         except TaskAlreadyAcquired:
-            logger.warning(f'Task {task_id} is already taken')
+            logger.warning(f'Task {self.task_id} is already taken')
             return False
         else:
             return True

@@ -29,6 +29,7 @@ class Worker:
     """
     sleep_interval = 0.05
     last_activity = time.time()
+    update_status_interval = 20
     total_run = 0
 
     def __init__(self, request=None, loop=None, max_size=5):
@@ -185,6 +186,8 @@ class Worker:
             await asyncio.sleep(0.01)
 
     async def is_cancelled(self, task_id):
+        """"""
+        # TODO
         return True
 
     async def update_status(self):
@@ -193,22 +196,16 @@ class Worker:
 
         """
         while True:
-            await asyncio.sleep(20)
+            await asyncio.sleep(self.update_status_interval)
             for task in self._running:
                 _id = task._job.data['task_id']
                 ts = TaskState(_id)
 
                 if task in self._done:
-                    # Clean-up running task list and release lock in
-                    # StateManager
+                    # Clean-up completed running task list and release
+                    # lock in StateManager
                     self._running.remove(task)
                     await ts.release()
-                else:
-                    # Get StateManager lock
-                    result = await ts.acquire()
-                    if not result:
-                        # kill the task
-                        task.cancel()
 
             # Cancel local tasks that have been cancelled in global
             # state manager
@@ -216,5 +213,6 @@ class Worker:
                 for task in self._running:
                     _id = task._job.data['task_id']
                     if _id == val:
+                        logger.warning(f"Canceling task {_id}")
                         task.cancel()
-                        await self._state_manager.clean_cancelled(_id)
+                        await self._state_manager.clean_canceled(_id)

@@ -25,6 +25,16 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
+    async def acquire(self, task_id, ttl=None):
+        """
+        """
+        raise NotImplementedError()
+
+    async def release(self, task_id):
+        """
+        """
+        raise NotImplementedError()
+
     async def cancelation_list(self):
         """
         Yields items from the canceled set
