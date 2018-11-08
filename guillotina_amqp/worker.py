@@ -104,36 +104,66 @@ class Worker:
         """
         channel, transport, protocol = await amqp.get_connection()
 
+        EXCHANGE = app_settings['amqp']['exchange']
+        QUEUE_MAIN = app_settings['amqp']['queue']
+        QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
+        QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
+        TTL_ERRORED = 1000 * 60 * 60 * 24 * 7  # 1 week
+        TTL_DELAYED = 1000 * 60 * 1  # 1 minute
+
+        # Declare main exchange
         await channel.exchange_declare(
-            exchange_name=app_settings['amqp']['exchange'],
+            exchange_name=EXCHANGE,
             type_name='direct',
             durable=True)
 
         # Errored tasks will remain a limited period of time
         await channel.queue_declare(
-            queue_name=app_settings['amqp']['queue'] + '-error', durable=True,
+            queue_name=QUEUE_ERRORED, durable=True,
             arguments={
-                'x-message-ttl': 1000 * 60 * 60 * 24 * 7  # 1 week
+                'x-message-ttl': TTL_ERRORED,
             })
 
-        # Automatically move failed tasks to errored queue
+        # Automatically move NACK tasks to errored queue
         await channel.queue_declare(
-            queue_name=app_settings['amqp']['queue'], durable=True,
+            queue_name=QUEUE_MAIN, durable=True,
             arguments={
-                'x-dead-letter-exchange': app_settings['amqp']['exchange'],
-                'x-dead-letter-routing-key': app_settings['amqp']['queue'] + '-error'
+                'x-dead-letter-exchange': EXCHANGE,
+                'x-dead-letter-routing-key': QUEUE_ERRORED,
             })
         await channel.queue_bind(
-            exchange_name=app_settings['amqp']['exchange'],
-            queue_name=app_settings['amqp']['queue'],
-            routing_key=app_settings['amqp']['queue'])
+            exchange_name=EXCHANGE,
+            queue_name=QUEUE_MAIN,
+            routing_key=QUEUE_MAIN,
+        )
+
+        # Declare delayed queue
+        await channel.queue_declare(
+            queue_name=QUEUE_DELAYED, durable=True,
+            arguments={
+                'x-message-ttl': TTL_DELAYED,
+            })
+
+        # Automatically move taks from delayed queue to main queue
+        await channel.queue_declare(
+            queue_name=QUEUE_DELAYED, durable=True,
+            arguments={
+                'x-dead-letter-exchange': EXCHANGE,
+                'x-dead-letter-routing-key': QUEUE_MAIN,
+            })
+        await channel.queue_bind(
+            exchange_name=EXCHANGE,
+            queue_name=QUEUE_DELAYED,
+            routing_key=QUEUE_DELAYED,
+        )
 
         await channel.basic_qos(prefetch_count=4)
 
         # Configure consume callback
         await channel.basic_consume(
             self.handle_queued_job,
-            queue_name=app_settings['amqp']['queue'])
+            queue_name=QUEUE_MAIN,
+        )
 
         # Start task that will update status periodically
         asyncio.ensure_future(self.update_status())
