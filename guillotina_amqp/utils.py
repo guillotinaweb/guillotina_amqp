@@ -16,7 +16,7 @@ import json
 import logging
 import uuid
 import threading
-from contextlib import contextmanager
+import asyncio
 
 
 logger = logging.getLogger('guillotina_amqp')
@@ -122,21 +122,38 @@ async def add_object_task(func, ob, *args, _request=None, _retries=3, **kwargs):
 
 
 class TimeoutLock(object):
+    """Implements a Lock that can be acquired for """
     def __init__(self):
         self._lock = threading.Lock()
+        self._thread = None
 
-    def acquire(self, blocking=True, timeout=-1):
-        return self._lock.acquire(blocking, timeout)
+    def acquire(self, ttl=-1, blocking=True):
+        """If ttl is -1, lock will be acquired forever (or until someone
+        manually releases it).
 
-    @contextmanager
-    def acquire_timeout(self, timeout):
-        result = self._lock.acquire(timeout=timeout)
-        yield result
-        if result:
-            self._lock.release()
+        Otherwise, it schedules an automatic release after the
+        specified ttl.
+        """
+        acquired = self._lock.acquire(blocking)
+        if not acquired:
+            return False
+
+        if ttl >= 0:
+            asyncio.ensure_future(self._release_after(ttl))
+        return True
+
+    async def _release_after(self, some_time):
+        await asyncio.sleep(some_time)
+        self.release()
 
     def release(self):
-        self._lock.release()
+        if self.locked():
+            self._lock.release()
 
     def locked(self):
         return self._lock.locked()
+
+    def refresh_lock(self, ttl):
+        # Overwrite old lock and acquire with new timeout
+        self._lock = threading.Lock()
+        return self.acquire(ttl)
