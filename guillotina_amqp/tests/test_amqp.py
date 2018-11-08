@@ -1,28 +1,14 @@
 from guillotina import app_settings
-from guillotina_amqp.decorators import task
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.utils import add_task
 from guillotina_amqp.utils import cancel_task
+from guillotina_amqp.tests.utils import _test_func
+from guillotina_amqp.tests.utils import _test_long_func
+from guillotina_amqp.tests.utils import _decorator_test_func
 
 import aiotask_context
 import asyncio
 import json
-
-
-async def _test_func(one, two, one_keyword=None):
-    return one + two
-
-
-async def _test_long_func(duration):
-    print('Started task')
-    await asyncio.sleep(duration)
-    print('Finished task')
-    return 'done!'
-
-
-@task
-async def _decorator_test_func(one, two):
-    return one + two
 
 
 async def test_add_task(dummy_request, amqp_worker):
@@ -73,8 +59,7 @@ async def test_task_commits_data_from_service(amqp_worker, container_requester):
 async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_state_manager):
     aiotask_context.set('request', dummy_request)
     # Add long running task
-    ts = await add_task(_test_long_func, 120)
-
+    ts = await _test_long_func(120)
     # Wait a bit and cancel
     await asyncio.sleep(1)
     success = await cancel_task(ts.task_id)

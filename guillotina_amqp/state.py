@@ -96,9 +96,10 @@ class MemoryStateManager:
     async def clean_canceled(self, task_id):
         try:
             self._canceled.remove(task_id)
+            return True
         except KeyError:
             # Task id wasn't canceled
-            pass
+            return False
 
 
 
