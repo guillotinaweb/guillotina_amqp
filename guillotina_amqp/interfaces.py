@@ -13,6 +13,11 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
+    async def exists(self, task_id):
+        """Returns whether a task id exists in the state manager
+        """
+        raise NotImplementedError()
+
     async def list(self):
         """
         Yields items from the list of stored items
@@ -55,6 +60,11 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
+    async def is_canceled(self, task_id):
+        """
+        Whether a task id has been cancelled
+        """
+        raise NotImplementedError()
 
 
 class ITaskDefinition(Interface):

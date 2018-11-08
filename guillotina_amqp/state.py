@@ -46,6 +46,9 @@ class MemoryStateManager:
     async def get(self, task_id):
         return self._data.get(task_id, {})
 
+    async def exists(self, task_id):
+        return task_id in self.data
+
     async def list(self):
         for task_id in self._data.keys():
             yield task_id
@@ -94,6 +97,9 @@ class MemoryStateManager:
         except KeyError:
             # Task id wasn't canceled
             return False
+
+    async def is_canceled(self, task_id):
+        return task_id in self._canceled
 
 
 _EMPTY = object()
@@ -155,6 +161,10 @@ class RedisStateManager:
             if value:
                 return json.loads(value)
 
+    async def exists(self, task_id):
+        data = await self.get(task_id)
+        return data is not None
+
     async def list(self):
         cache = await self.get_cache()
         async for key in cache.iscan(match=f'{self._cache_prefix}*'):
@@ -198,8 +208,16 @@ class RedisStateManager:
         resp = await cache.zrem(f'{self._cache_prefix}cancel', task_id)
         return resp > 0
 
+    async def is_canceled(self, task_id):
+        cache = await self.get_cache()
+        value = await cache.get(f'{self._cache_prefix}cancel' + task_id)
+        return value is not None
+
 
 class TaskState:
+    """Wrapper around state_manager implementation so we can use it by
+    just having a task_id
+    """
 
     def __init__(self, task_id):
         self.task_id = task_id
@@ -267,9 +285,6 @@ class TaskState:
         util = get_state_manager()
         await util.release(self.task_id)
 
-    async def is_cancelled(self):
+    async def is_canceled(self):
         util = get_state_manager()
-        async for val in util.cancelation_list():
-            if val == self.task_id:
-                return True
-        return False
+        return await util.is_canceled(self.task_id)

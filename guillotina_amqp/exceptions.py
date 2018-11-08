@@ -8,3 +8,7 @@ class TaskNotFoundException(Exception):
 
 class TaskAlreadyAcquired(Exception):
     pass
+
+
+class TaskAlreadyCancelled(Exception):
+    pass

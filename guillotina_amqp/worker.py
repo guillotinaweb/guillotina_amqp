@@ -82,9 +82,15 @@ class Worker:
         # Get the redis lock on the task so no other worker takes it
         _id = job.data['task_id']
         ts = TaskState(_id)
-        res = await ts.acquire()
-        if not res:
-            raise Exception()
+
+        if await ts.is_canceled():
+            logger.warning(f'Task {_id} has already been canceled')
+            raise TaskAlreadyCancelled(_id)
+        try:
+            res = await ts.acquire()
+        except TaskAlreadyAcquired:
+            logger.warning(f'Task {_id} is already running in another worker')
+            raise
 
         # Add the task to the loop and start it
         task = self.loop.create_task(job())
@@ -184,13 +190,6 @@ class Worker:
         """
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
-
-    async def is_cancelled(self, task_id):
-        """
-        Returns wether task_id has been cancelled
-        """
-        ts = TaskState(task_id)
-        return await ts.is_cancelled()
 
     async def update_status(self):
         """Updates status for running tasks and kills running tasks that have
