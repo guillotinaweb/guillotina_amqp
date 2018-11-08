@@ -14,5 +14,10 @@ async def _test_long_func(duration):
 
 
 @task
+async def _test_failing_func():
+    raise Exception('Foobar')
+
+
+@task
 async def _decorator_test_func(one, two):
     return one + two

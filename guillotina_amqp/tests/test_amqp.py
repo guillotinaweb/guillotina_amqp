@@ -4,6 +4,7 @@ from guillotina_amqp.utils import add_task
 from guillotina_amqp.utils import cancel_task
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.tests.utils import _test_long_func
+from guillotina_amqp.tests.utils import _test_failing_func
 from guillotina_amqp.tests.utils import _decorator_test_func
 
 import aiotask_context
@@ -86,4 +87,15 @@ async def test_decorator_task(dummy_request, amqp_worker):
     assert amqp_worker.total_run == 1
     assert await state.get_status() == 'finished'
     assert await state.get_result() == 3
+    aiotask_context.set('request', None)
+
+
+async def test_worker_retries_should_not_exceed_the_limit(dummy_request, amqp_worker):
+    aiotask_context.set('request', dummy_request)
+    ts = await _test_failing_func()
+    # wait for it to finish
+    await ts.join(0.1)
+    assert amqp_worker.total_run == 1
+    import pdb; pdb.set_trace()
+
     aiotask_context.set('request', None)

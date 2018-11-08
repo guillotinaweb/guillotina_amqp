@@ -66,10 +66,17 @@ async def test_cancel_task(container_requester, dummy_request):
         assert status == 200
         assert resp['ok'] # success
 
-        # Check returns success if False
+        # Check returns correctly if already canceled task_id
+        resp, status = await requester(
+            'DELETE', f'/db/guillotina/@amqp-cancel?task_id={t1.task_id}')
+        assert status == 200
+        assert resp['ok']
+        assert resp['info'] == 'already canceled'
+
+        # Check returns 404 is unknown task
         resp, status = await requester(
             'DELETE', f'/db/guillotina/@amqp-cancel?task_id=foo')
-        assert status == 200
-        assert resp['ok'] in (True, False)
+        assert status == 404
+
 
     aiotask_context.set('request', None)

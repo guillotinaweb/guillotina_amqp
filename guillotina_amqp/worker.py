@@ -8,6 +8,9 @@ from guillotina import app_settings
 from guillotina_amqp import amqp
 from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager, TaskState
+from guillotina_amqp.exceptions import TaskAlreadyAcquired
+from guillotina_amqp.exceptions import TaskAlreadyCanceled
+from guillotina_amqp.exceptions import TaskMaxRetriesReached
 
 import asyncio
 import json
@@ -31,6 +34,8 @@ class Worker:
     last_activity = time.time()
     update_status_interval = 20
     total_run = 0
+    total_errored = 0
+    max_task_retries = 5
 
     def __init__(self, request=None, loop=None, max_size=5):
         self.request = request
@@ -82,14 +87,16 @@ class Worker:
         _id = job.data['task_id']
         ts = TaskState(_id)
 
+        # Cancelation
         if await ts.is_canceled():
             logger.warning(f'Task {_id} has already been canceled')
-            raise TaskAlreadyCancelled(_id)
+            raise TaskAlreadyCanceled(_id)
+
         try:
-            res = await ts.acquire()
+            await ts.acquire()
         except TaskAlreadyAcquired:
             logger.warning(f'Task {_id} is already running in another worker')
-            raise
+            # TODO: ACK task
 
         # Record job's data into global state
         await self.state_manager.update(task_id, {
@@ -107,6 +114,61 @@ class Worker:
         """This is called when a job finishes execution"""
         self._done.append(task)
         self.total_run += 1
+
+        # Task finished with error
+        if task.exception():
+            # If task was cancelled
+            if isinstance(task.exception(), CancelledError):
+                # ACK to main queue to it is not scheduled anymore
+                # Set status to cancelled
+                await self.state_manager.update(self.data['task_id'], {
+                    'status': 'canceled',
+                    'error': task.print_stack(),
+                })
+                return
+
+            # If max retries reached
+            existing_data = await self.state_manager.get(task_id)
+            retrials = existing_data.get('job_retries', 0)
+            if retrials >= self.max_task_retries:
+                logger.warning(
+                    f'Task {task_id} was retried already {self.max_task_retries} times')
+                # Send NACK, as we exceeded the number of retrials
+                await task._job.channel.basic_client_nack(
+                    delivery_tag=task._job.envelope.delivery_tag,
+                    multiple=False, requeue=False)
+
+                # TODO: append errors in a list instead
+                await self.state_manager.update(self.data['task_id'], {
+                    'status': 'errored',
+                    'error': task.print_stack(),
+                })
+                return
+
+            # Otherwise, increment retry count and send it to delay queue
+            await self.state_manager.update(task_id, {
+                'job_retries': retrials + 1,
+            })
+
+            # TODO
+            # Publish to delay queue
+            # Send ACK to main queue
+            # (In this order)
+            return
+
+        # If task ran successfully, ACK main queue and finish
+
+        # ACK rabbitmq: will make task disappear from rabbitmq
+        await task._job.channel.basic_client_ack(
+            delivery_tag=task._job.envelope.delivery_tag)
+
+        # Update status with result
+        await self.state_manager.update(task._job.data['task_id'], {
+            'status': 'finished',
+            'result': task.result(),
+        })
+        logger.info(f'Finished task: {task_id}: {dotted_name}')
+        return
 
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and

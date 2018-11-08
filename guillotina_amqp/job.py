@@ -179,24 +179,16 @@ class Job:
             result = await func(*self.data['args'], **self.data['kwargs'])
             await commit(request)
             committed = True
-            # ACK rabbitmq: will make task disappear from rabbitmq
-            await self.channel.basic_client_ack(
-                delivery_tag=self.envelope.delivery_tag)
-            # Update status
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'finished',
-                'result': result
-            })
-            logger.info(f'Finished task: {task_id}: {dotted_name}')
-        except Exception:
+
+            self.task.set_result(result)
+        except CancelledError as e:
+            logger.warning(f'Cancelled task: {self.data}', exc_info=True)
+            self.task.set_exception(e)
+
+        except Exception as e:
             logger.warning(f'Error executing task: {self.data}', exc_info=True)
-            await self.channel.basic_client_nack(
-                delivery_tag=self.envelope.delivery_tag,
-                multiple=False, requeue=False)
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'errored',
-                'error': traceback.format_exc()
-            })
+            self.task.set_exception(e)
+
         finally:
             if request is not None and not committed:
                 await abort(request)

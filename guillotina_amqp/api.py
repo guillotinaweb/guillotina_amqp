@@ -72,9 +72,28 @@ async def cancel_task(context, request):
         #     'reason': 'Missing task_id'
         # })
 
-    success = await mngr.cancel(task_id)
+    if await mngr.is_canceled(task_id):
+        return {
+            'ok': True,
+            'info': 'already canceled'
+        }
+
+    if not await mngr.exists(task_id):
+        raise HTTPNotFound(reason='Task unexisting task')
+        # TODO: replace for below to upgrade to g4
+        # raise HTTPNotFound(content={
+        #     'reason': 'Task not found'
+        # })
+
+    if await mngr.cancel(task_id):
+        return {
+            'ok': True,
+            'info': 'task canceled'
+        }
+
     return {
-        'ok': success
+        'ok': False,
+        'info': 'could not cancel task'
     }
 
 

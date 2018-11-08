@@ -1,7 +1,6 @@
 from guillotina import testing
 import pytest
 from guillotina_amqp.worker import Worker
-from guillotina_amqp.commands.worker import EventLoopWatchdog
 from guillotina import app_settings
 
 
@@ -43,14 +42,6 @@ def amqp_worker(loop):
         loop.run_until_complete(conn['protocol'].close())
     _worker.cancel()
     app_settings['amqp']['connections'] = {}
-
-
-@pytest.fixture('function')
-def amqp_watchdog(loop):
-    thread = EventLoopWatchdog(loop, timeout=20)
-    thread.start()
-    yield thread
-    thread.join()
 
 
 @pytest.fixture('function', params=[

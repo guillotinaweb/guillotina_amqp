@@ -10,5 +10,9 @@ class TaskAlreadyAcquired(Exception):
     pass
 
 
-class TaskAlreadyCancelled(Exception):
+class TaskAlreadyCanceled(Exception):
+    pass
+
+
+class TaskMaxRetriesReached(Exception):
     pass

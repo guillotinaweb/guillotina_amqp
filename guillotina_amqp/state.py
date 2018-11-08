@@ -47,7 +47,7 @@ class MemoryStateManager:
         return self._data.get(task_id, {})
 
     async def exists(self, task_id):
-        return task_id in self.data
+        return task_id in self._data
 
     async def list(self):
         for task_id in self._data.keys():
@@ -160,6 +160,7 @@ class RedisStateManager:
             value = await cache.get(self._cache_prefix + task_id)
             if value:
                 return json.loads(value)
+        return {}
 
     async def exists(self, task_id):
         data = await self.get(task_id)
