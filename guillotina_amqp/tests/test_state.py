@@ -2,6 +2,7 @@ from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 
 import pytest
+import asyncio
 
 
 async def test_update_and_get_should_match(configured_state_manager):
@@ -13,12 +14,23 @@ async def test_update_and_get_should_match(configured_state_manager):
 
 async def test_acquire_should_block_further_acquires(configured_state_manager):
     state_manager = get_state_manager()
-    await state_manager.acquire('foo')
+    FOREVER = -1
+    await state_manager.acquire('foo', ttl=FOREVER)
     with pytest.raises(TaskAlreadyAcquired):
-        await state_manager.acquire('foo')
+        await state_manager.acquire('foo', ttl=FOREVER)
     # Release it and acquire again
     await state_manager.release('foo')
-    await state_manager.acquire('foo')
+    await state_manager.acquire('foo', ttl=FOREVER)
+
+
+async def test_acquire_should_unblock_after_ttl(configured_state_manager):
+    state_manager = get_state_manager()
+    await state_manager.acquire('foo', ttl=1)
+    with pytest.raises(TaskAlreadyAcquired):
+        await state_manager.acquire('foo', ttl=1)
+    # Wait for the ttl and check
+    await asyncio.sleep(1.1)
+    await state_manager.acquire('foo', ttl=1)
 
 
 async def test_list_should_yield_all_items(configured_state_manager):

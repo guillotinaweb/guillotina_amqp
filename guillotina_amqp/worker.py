@@ -82,7 +82,7 @@ class Worker:
         # Get the redis lock on the task so no other worker takes it
         _id = job.data['task_id']
         ts = TaskState(_id)
-        res = await ts.acquire(timeout=120)
+        res = await ts.acquire()
         if not res:
             raise Exception()
 
@@ -186,9 +186,11 @@ class Worker:
             await asyncio.sleep(0.01)
 
     async def is_cancelled(self, task_id):
-        """"""
-        # TODO
-        return True
+        """
+        Returns wether task_id has been cancelled
+        """
+        ts = TaskState(task_id)
+        return await ts.is_cancelled()
 
     async def update_status(self):
         """Updates status for running tasks and kills running tasks that have
@@ -206,6 +208,10 @@ class Worker:
                     # lock in StateManager
                     self._running.remove(task)
                     await ts.release()
+
+                else:
+                    # Still working on the job: refresh task lock
+                    await ts.refresh_lock()
 
             # Cancel local tasks that have been cancelled in global
             # state manager

@@ -13,7 +13,6 @@ import json
 import logging
 import time
 import uuid
-from threading import Lock
 import copy
 
 try:
@@ -25,6 +24,7 @@ except ImportError:
 
 logger = logging.getLogger('guillotina_amqp')
 
+DEFAULT_LOCK_TTL_S = 120
 
 
 @configure.utility(provides=IStateManagerUtility, name='memory')
@@ -32,57 +32,51 @@ class MemoryStateManager:
     '''
     Meaningless for anyting other than tests
     '''
-    def __init__(self, size=5):
+    def __init__(self, size=10):
         self._data = LRU(size)
         self._locks = {}
         self._canceled = set()
 
     async def update(self, task_id, data):
-        if task_id not in self._data:
-            self._data[task_id] = data
-        else:
-            self._data[task_id].update(data)
+        # Updates existing data with new data
+        existing = await self.get(task_id)
+        existing.update(data)
+        self._data[task_id] = existing
 
     async def get(self, task_id):
-        if task_id in self._data:
-            return self._data[task_id]
+        return self._data.get(task_id, {})
 
     async def list(self):
         for task_id in self._data.keys():
             yield task_id
 
-    async def acquire(self, task_id, ttl=None):
-        already_locked = await self._locked(task_id)
+    async def acquire(self, task_id, ttl):
+        already_locked = await self.is_locked(task_id)
         if already_locked:
             raise TaskAlreadyAcquired(task_id)
+
         # Set new lock
-        if ttl:
-            from guillotina_amqp.utils import TimeoutLock
-            lock = TimeoutLock()
-            lock.acquire(timeout=ttl)
-        else:
-            lock = Lock()
-            lock.acquire()
+        from guillotina_amqp.utils import TimeoutLock
+        lock = TimeoutLock()
+        lock.acquire(ttl=ttl)
         self._locks[task_id] = lock
 
-    async def _locked(self, task_id):
+    async def is_locked(self, task_id):
         if task_id not in self._locks:
             return False
-
         return self._locks[task_id].locked()
 
     async def release(self, task_id):
+        if await self.is_locked(task_id):
+            # Release lock
+            self._locks[task_id].release()
+        # Remove it from data structure
+        self._locks.pop(task_id, None)
+
+    async def refresh_lock(self, task_id, ttl):
         if task_id not in self._locks:
-            # No need to do here
-            return
-
-        if not self._locks[task_id].locked():
-            self._locks.pop(task_id)
-            return
-
-        # Release lock
-        self._locks[task_id].release()
-        self._locks.pop(task_id)
+            raise Exception(f'{task_id} not found')
+        return self._locks[task_id].refresh_lock(ttl)
 
     async def cancel(self, task_id):
         self._canceled.update({task_id})
@@ -100,7 +94,6 @@ class MemoryStateManager:
         except KeyError:
             # Task id wasn't canceled
             return False
-
 
 
 _EMPTY = object()
@@ -149,6 +142,7 @@ class RedisStateManager:
             value = data
             existing = await cache.get(self._cache_prefix + task_id)
             if existing:
+                # Update existing with new data
                 value = json.loads(existing)
                 value.update(data)
             await cache.set(
@@ -166,17 +160,25 @@ class RedisStateManager:
         async for key in cache.iscan(match=f'{self._cache_prefix}*'):
             yield key.decode().replace(self._cache_prefix, '')
 
-    async def acquire(self, task_id, ttl=None):
+    async def acquire(self, task_id, ttl):
         cache = await self.get_cache()
         resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
         if not resp:
             raise TaskAlreadyAcquired(task_id)
-        elif ttl:
-            await cache.expire(f'lock:{task_id}', ttl)
+
+        # Need to set an expiration for the lock in redis at
+        # creation time
+        refreshed = await self.refresh_lock(task_id, ttl)
+        return refreshed
 
     async def release(self, task_id):
         cache = await self.get_cache()
         resp = await cache.delete(f'lock:{task_id}')
+        return resp > 0
+
+    async def refresh_lock(self, task_id, ttl):
+        cache = await self.get_cache()
+        resp = await cache.expire(f'lock:{task_id}', ttl)
         return resp > 0
 
     async def cancel(self, task_id):
@@ -206,7 +208,7 @@ class TaskState:
         util = get_state_manager()
         while True:
             data = await util.get(self.task_id)
-            if data is None:
+            if not data:
                 raise TaskNotFoundException(self.task_id)
             if data.get('status') in ('finished', 'errored'):
                 return data
@@ -215,7 +217,7 @@ class TaskState:
     async def get_state(self):
         util = get_state_manager()
         data = await util.get(self.task_id)
-        if data is None:
+        if not data:
             raise TaskNotFoundException(self.task_id)
         return data
 
@@ -230,14 +232,14 @@ class TaskState:
         '''
         util = get_state_manager()
         data = await util.get(self.task_id)
-        if data is None:
+        if not data:
             raise TaskNotFoundException(self.task_id)
         return data.get('status')
 
     async def get_result(self):
         util = get_state_manager()
         data = await util.get(self.task_id)
-        if data is None:
+        if not data:
             raise TaskNotFoundException(self.task_id)
         if data.get('status') not in ('finished', 'errored'):
             raise TaskNotFinishedException(self.task_id)
@@ -247,16 +249,27 @@ class TaskState:
         util = get_state_manager()
         return await util.cancel(self.task_id)
 
-    async def acquire(self, timeout=120):
+    async def acquire(self, ttl=DEFAULT_LOCK_TTL_S):
         util = get_state_manager()
         try:
-            await util.acquire(self.task_id, timeout)
+            await util.acquire(self.task_id, ttl)
         except TaskAlreadyAcquired:
             logger.warning(f'Task {self.task_id} is already taken')
             return False
         else:
             return True
 
+    async def refresh_lock(self, ttl=DEFAULT_LOCK_TTL_S):
+        util = get_state_manager()
+        await util.refresh_lock(self.task_id, ttl)
+
     async def release(self):
         util = get_state_manager()
         await util.release(self.task_id)
+
+    async def is_cancelled(self):
+        util = get_state_manager()
+        async for val in util.cancelation_list():
+            if val == self.task_id:
+                return True
+        return False

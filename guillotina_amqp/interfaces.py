@@ -25,13 +25,21 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
-    async def acquire(self, task_id, ttl=None):
+    async def acquire(self, task_id, ttl):
         """
+        Get a lock on a certain task, by id.
         """
         raise NotImplementedError()
 
     async def release(self, task_id):
         """
+        Release the lock for the specified task
+        """
+        raise NotImplementedError()
+
+    async def refresh_lock(self, task_id, ttl):
+        """
+        Update lock TTL
         """
         raise NotImplementedError()
 
