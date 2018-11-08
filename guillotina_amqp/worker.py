@@ -78,7 +78,6 @@ class Worker:
         # Create job object
         self.last_activity = time.time()
         job = Job(self.request, data, channel, envelope)
-
         # Get the redis lock on the task so no other worker takes it
         _id = job.data['task_id']
         ts = TaskState(_id)
@@ -91,6 +90,11 @@ class Worker:
         except TaskAlreadyAcquired:
             logger.warning(f'Task {_id} is already running in another worker')
             raise
+
+        # Record job's data into global state
+        await self.state_manager.update(task_id, {
+            'job_data': job.data,
+        })
 
         # Add the task to the loop and start it
         task = self.loop.create_task(job())
