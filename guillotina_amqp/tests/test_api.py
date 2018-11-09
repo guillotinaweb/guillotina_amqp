@@ -3,6 +3,7 @@ from guillotina_amqp.tests.utils import _test_func
 
 import aiotask_context
 
+
 async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
     aiotask_context.set('request', dummy_request)
 
@@ -64,7 +65,7 @@ async def test_cancel_task(container_requester, dummy_request):
         resp, status = await requester(
             'DELETE', f'/db/guillotina/@amqp-cancel?task_id={t1.task_id}')
         assert status == 200
-        assert resp['ok'] # success
+        assert resp['ok']  # success
 
         # Check returns correctly if already canceled task_id
         resp, status = await requester(
@@ -77,6 +78,5 @@ async def test_cancel_task(container_requester, dummy_request):
         resp, status = await requester(
             'DELETE', f'/db/guillotina/@amqp-cancel?task_id=foo')
         assert status == 404
-
 
     aiotask_context.set('request', None)

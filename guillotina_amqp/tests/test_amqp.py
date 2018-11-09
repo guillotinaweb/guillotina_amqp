@@ -96,6 +96,4 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request, amqp_wo
     # wait for it to finish
     await ts.join(0.1)
     assert amqp_worker.total_run == 1
-    import pdb; pdb.set_trace()
-
     aiotask_context.set('request', None)

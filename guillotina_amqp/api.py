@@ -97,7 +97,6 @@ async def cancel_task(context, request):
     }
 
 
-
 """
 @configure.service(method='GET', name='@amqp-stats',
                    permission='guillotina.AccessContent')

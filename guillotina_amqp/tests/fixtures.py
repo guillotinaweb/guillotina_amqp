@@ -61,7 +61,7 @@ def configured_state_manager(request, redis_enabled, redis_disabled):
 def redis_enabled(redis, dummy_request):
     app_settings['amqp']['persistent_manager'] = 'redis'
     app_settings['redis_prefix_key'] = 'amqpjobs-'
-    app_settings.update({"redis":{
+    app_settings.update({"redis": {
         'host': redis[0],
         'port': redis[1],
         'pool': {

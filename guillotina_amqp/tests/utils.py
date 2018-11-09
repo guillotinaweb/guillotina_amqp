@@ -1,6 +1,7 @@
 from guillotina_amqp.decorators import task
 import asyncio
 
+
 async def _test_func(one, two, one_keyword=None):
     return one + two
 

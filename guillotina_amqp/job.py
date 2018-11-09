@@ -22,8 +22,8 @@ from zope.interface import alsoProvides
 
 import aiotask_context
 import logging
-import traceback
 import yarl
+import asyncio
 
 
 logger = logging.getLogger('guillotina_amqp')
@@ -181,7 +181,8 @@ class Job:
             committed = True
 
             self.task.set_result(result)
-        except CancelledError as e:
+
+        except asyncio.CancelledError as e:
             logger.warning(f'Cancelled task: {self.data}', exc_info=True)
             self.task.set_exception(e)
 

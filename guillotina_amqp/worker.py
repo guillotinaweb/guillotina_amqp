@@ -10,7 +10,6 @@ from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager, TaskState
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.exceptions import TaskAlreadyCanceled
-from guillotina_amqp.exceptions import TaskMaxRetriesReached
 
 import asyncio
 import json
@@ -36,6 +35,13 @@ class Worker:
     total_run = 0
     total_errored = 0
     max_task_retries = 5
+    # RabbitMQ queue names defined here
+    EXCHANGE = app_settings['amqp']['exchange']
+    QUEUE_MAIN = app_settings['amqp']['queue']
+    QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
+    QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
+    TTL_ERRORED = 1000 * 60 * 60 * 24 * 7  # 1 week
+    TTL_DELAYED = 1000 * 60 * 1  # 1 minute
 
     def __init__(self, request=None, loop=None, max_size=5):
         self.request = request
@@ -110,65 +116,94 @@ class Worker:
         self._running.append(task)
         task.add_done_callback(self._done_callback)
 
-    def _done_callback(self, task):
-        """This is called when a job finishes execution"""
-        self._done.append(task)
-        self.total_run += 1
+    async def _handle_canceled(self, task):
+        task_id = task._job.data['task_id']
+        # ACK to main queue to it is not scheduled anymore
+        await task._job.channel.basic_client_ack(
+            delivery_tag=task._job.envelope.delivery_tag)
 
-        # Task finished with error
-        if task.exception():
-            # If task was cancelled
-            if isinstance(task.exception(), CancelledError):
-                # ACK to main queue to it is not scheduled anymore
-                # Set status to cancelled
-                await self.state_manager.update(self.data['task_id'], {
-                    'status': 'canceled',
-                    'error': task.print_stack(),
-                })
-                return
+        # Set status to cancelled
+        await self.state_manager.update(task_id, {
+            'status': 'canceled',
+            'error': task.print_stack(),
+        })
 
-            # If max retries reached
-            existing_data = await self.state_manager.get(task_id)
-            retrials = existing_data.get('job_retries', 0)
-            if retrials >= self.max_task_retries:
-                logger.warning(
-                    f'Task {task_id} was retried already {self.max_task_retries} times')
-                # Send NACK, as we exceeded the number of retrials
-                await task._job.channel.basic_client_nack(
-                    delivery_tag=task._job.envelope.delivery_tag,
-                    multiple=False, requeue=False)
+    async def _handle_max_retries_reached(self, task):
+        task_id = task._job.data['task_id']
+        logger.warning(
+            f'Task {task_id} reached max {self.max_task_retries} retries')
 
-                # TODO: append errors in a list instead
-                await self.state_manager.update(self.data['task_id'], {
-                    'status': 'errored',
-                    'error': task.print_stack(),
-                })
-                return
+        # Send NACK, as we exceeded the number of retrials
+        await task._job.channel.basic_client_nack(
+            delivery_tag=task._job.envelope.delivery_tag,
+            multiple=False, requeue=False)
 
-            # Otherwise, increment retry count and send it to delay queue
-            await self.state_manager.update(task_id, {
-                'job_retries': retrials + 1,
-            })
+        # Update status to errored with the traceback
+        await self.state_manager.update(task_id, {
+            'status': 'errored',
+            'errors': task.print_stack(),
+        })
 
-            # TODO
-            # Publish to delay queue
-            # Send ACK to main queue
-            # (In this order)
-            return
+    async def _handle_retry(self, task, current_retries):
+        task_id = task._job.data['task_id']
+        channel = task._job.channel
+        # Increment retry count
+        await self.state_manager.update(task_id, {
+            'job_retries': current_retries + 1,
+        })
 
-        # If task ran successfully, ACK main queue and finish
+        # Publish task data to delay queue
+        await channel.publish(
+            task._job.data,
+            exchange_name=self.EXCHANGE,
+            routing_key=self.QUEUE_DELAYED,
+            properties={
+                'delivery_mode': 2
+            }
+        )
+        # ACK to main queue so it doesn't timeout
+        await channel.basic_client_ack(
+            delivery_tag=task._job.envelope.delivery_tag)
+        logger.info(f'Task {task_id} will be retried')
 
+    async def _handle_successful(self, task):
+        task_id = task._job.data['task_id']
+        dotted_name = task._job.data['func']
         # ACK rabbitmq: will make task disappear from rabbitmq
         await task._job.channel.basic_client_ack(
             delivery_tag=task._job.envelope.delivery_tag)
 
         # Update status with result
-        await self.state_manager.update(task._job.data['task_id'], {
+        await self.state_manager.update(task_id, {
             'status': 'finished',
             'result': task.result(),
         })
         logger.info(f'Finished task: {task_id}: {dotted_name}')
-        return
+
+    async def _done_callback(self, task):
+        """This is called when a job finishes execution"""
+        task_id = task._job.data['task_id']
+        self._done.append(task)
+        self.total_run += 1
+
+        # Task finished with error
+        exception = task.exception()
+        if exception:
+            # If task was cancelled
+            if isinstance(exception, asyncio.CancelledError):
+                return await self._handle_canceled(task)
+
+            # If max retries reached
+            existing_data = await self.state_manager.get(task_id)
+            retrials = existing_data.get('job_retries', 0)
+            if retrials >= self.max_task_retries:
+                return await self._handle_max_retries_reached(task)
+
+            # Otherwise let task be retried
+            return await self._handle_retry(task, retrials)
+
+        # If task ran successfully, ACK main queue and finish
+        return await self._handle_successful(task)
 
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and
@@ -177,57 +212,50 @@ class Worker:
         """
         channel, transport, protocol = await amqp.get_connection()
 
-        EXCHANGE = app_settings['amqp']['exchange']
-        QUEUE_MAIN = app_settings['amqp']['queue']
-        QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
-        QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
-        TTL_ERRORED = 1000 * 60 * 60 * 24 * 7  # 1 week
-        TTL_DELAYED = 1000 * 60 * 1  # 1 minute
-
         # Declare main exchange
         await channel.exchange_declare(
-            exchange_name=EXCHANGE,
+            exchange_name=self.EXCHANGE,
             type_name='direct',
             durable=True)
 
         # Errored tasks will remain a limited period of time
         await channel.queue_declare(
-            queue_name=QUEUE_ERRORED, durable=True,
+            queue_name=self.QUEUE_ERRORED, durable=True,
             arguments={
-                'x-message-ttl': TTL_ERRORED,
+                'x-message-ttl': self.TTL_ERRORED,
             })
 
         # Automatically move NACK tasks to errored queue
         await channel.queue_declare(
-            queue_name=QUEUE_MAIN, durable=True,
+            queue_name=self.QUEUE_MAIN, durable=True,
             arguments={
-                'x-dead-letter-exchange': EXCHANGE,
-                'x-dead-letter-routing-key': QUEUE_ERRORED,
+                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-routing-key': self.QUEUE_ERRORED,
             })
         await channel.queue_bind(
-            exchange_name=EXCHANGE,
-            queue_name=QUEUE_MAIN,
-            routing_key=QUEUE_MAIN,
+            exchange_name=self.EXCHANGE,
+            queue_name=self.QUEUE_MAIN,
+            routing_key=self.QUEUE_MAIN,
         )
 
         # Declare delayed queue
         await channel.queue_declare(
-            queue_name=QUEUE_DELAYED, durable=True,
+            queue_name=self.QUEUE_DELAYED, durable=True,
             arguments={
-                'x-message-ttl': TTL_DELAYED,
+                'x-message-ttl': self.TTL_DELAYED,
             })
 
         # Automatically move taks from delayed queue to main queue
         await channel.queue_declare(
-            queue_name=QUEUE_DELAYED, durable=True,
+            queue_name=self.QUEUE_DELAYED, durable=True,
             arguments={
-                'x-dead-letter-exchange': EXCHANGE,
-                'x-dead-letter-routing-key': QUEUE_MAIN,
+                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-routing-key': self.QUEUE_MAIN,
             })
         await channel.queue_bind(
-            exchange_name=EXCHANGE,
-            queue_name=QUEUE_DELAYED,
-            routing_key=QUEUE_DELAYED,
+            exchange_name=self.EXCHANGE,
+            queue_name=self.QUEUE_DELAYED,
+            routing_key=self.QUEUE_DELAYED,
         )
 
         await channel.basic_qos(prefetch_count=4)
@@ -235,13 +263,13 @@ class Worker:
         # Configure consume callback
         await channel.basic_consume(
             self.handle_queued_job,
-            queue_name=QUEUE_MAIN,
+            queue_name=self.QUEUE_MAIN,
         )
 
         # Start task that will update status periodically
         asyncio.ensure_future(self.update_status())
 
-        logger.warning(f"Subscribed to queue: {app_settings['amqp']['queue']}")
+        logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
 
     def cancel(self):
         """

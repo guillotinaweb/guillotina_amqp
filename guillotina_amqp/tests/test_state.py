@@ -61,4 +61,4 @@ async def test_clean_cancel_should_clean_from_canceled_list(configured_state_man
     assert 'foo' not in canceled_list
 
 
-#async def test_task_
+# async def test_task_
