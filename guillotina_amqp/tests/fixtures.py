@@ -4,6 +4,20 @@ from guillotina_amqp.worker import Worker
 from guillotina import app_settings
 
 
+base_amqp_settings = {
+    "connection_factory": "guillotina_amqp.tests.mocks.amqp_connection_factory",
+    "host": "localhost",
+    "port": 5673,
+    "login": "guest",
+    "password": "guest",
+    "vhost": "/",
+    "heartbeat": 800,
+    "exchange": "",
+    "queue": "guillotina",
+    "persistent_manager": "memoryee",
+}
+
+
 def base_settings_configurator(settings):
     if 'applications' in settings:
         settings['applications'].extend([
@@ -11,18 +25,7 @@ def base_settings_configurator(settings):
         ])
     else:
         settings['applications'] = ['guillotina_amqp', 'guillotina_amqp.tests.package']
-    settings['amqp'] = {
-        "connection_factory": "guillotina_amqp.tests.mocks.amqp_connection_factory",
-        "host": "localhost",
-        "port": 5673,
-        "login": "guest",
-        "password": "guest",
-        "vhost": "/",
-        "heartbeat": 800,
-        "exchange": "",
-        "queue": "guillotina",
-        "persistent_manager": "memory",
-    }
+    settings['amqp'] = base_amqp_settings
 
 
 testing.configure_with(base_settings_configurator)
@@ -45,34 +48,24 @@ def amqp_worker(loop):
 
 
 @pytest.fixture('function', params=[
+    {'redis_up': True},
     {'redis_up': False},
-    {'redis_up': True}
 ])
-def configured_state_manager(request, redis_enabled, redis_disabled):
+def configured_state_manager(request, redis, dummy_request):
     if request.param.get('redis_up'):
         # Redis
-        yield redis_enabled
+        app_settings['amqp']['persistent_manager'] = 'redis'
+        app_settings['redis_prefix_key'] = 'amqpjobs-'
+        app_settings.update({"redis": {
+            'host': redis[0],
+            'port': redis[1],
+            'pool': {
+                "minsize": 1,
+                "maxsize": 5,
+            },
+        }})
+        yield redis
     else:
         # Memory
-        yield redis_disabled
-
-
-@pytest.fixture('function')
-def redis_enabled(redis):
-    app_settings['amqp']['persistent_manager'] = 'redis'
-    app_settings['redis_prefix_key'] = 'amqpjobs-'
-    app_settings.update({"redis": {
-        'host': redis[0],
-        'port': redis[1],
-        'pool': {
-            "minsize": 1,
-            "maxsize": 5,
-        },
-    }})
-    yield redis
-
-
-@pytest.fixture('function')
-def redis_disabled():
-    app_settings['amqp']['persistent_manager'] = 'memory'
-    yield
+        app_settings['amqp']['persistent_manager'] = 'memory'
+        yield

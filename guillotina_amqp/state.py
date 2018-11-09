@@ -39,6 +39,9 @@ class MemoryStateManager:
         self._canceled = set()
         self.worker_id = uuid.uuid4().hex
 
+    def set_loop(self, loop=None):
+        pass
+
     async def update(self, task_id, data):
         # Updates existing data with new data
         existing = await self.get(task_id)
@@ -123,17 +126,18 @@ class MemoryStateManager:
 _EMPTY = object()
 
 
-def get_state_manager():
+def get_state_manager(loop=None):
     """Factory that gets the configured state manager.
 
     Currently we have two implementations: memory | redis
     """
-    persistent_manager = app_settings['amqp']['persistent_manager']
-    print(f"\n\tPERSISTENT_MANAGER: {persistent_manager}")
-    return get_utility(
+    utility = get_utility(
         IStateManagerUtility,
-        name=persistent_manager,
+        name=app_settings['amqp']['persistent_manager'],
     )
+    if loop:
+        utility.set_loop(loop)
+    return utility
 
 
 @configure.utility(provides=IStateManagerUtility, name='redis')
@@ -142,9 +146,14 @@ class RedisStateManager:
     '''
     _cache_prefix = 'amqpjobs-'
 
-    def __init__(self):
+    def __init__(self, loop=None):
+        self.loop = loop
         self._cache = None
         self.worker_id = uuid.uuid4().hex
+
+    def set_loop(self, loop=None):
+        if loop:
+            self.loop = loop
 
     async def get_cache(self):
         if self._cache == _EMPTY:
@@ -156,7 +165,7 @@ class RedisStateManager:
             return None
 
         if 'redis' in app_settings:
-            self._cache = aioredis.Redis(await get_redis_pool())
+            self._cache = aioredis.Redis(await get_redis_pool(loop=self.loop))
             return self._cache
         else:
             self._cache = _EMPTY
@@ -192,26 +201,31 @@ class RedisStateManager:
             yield key.decode().replace(self._cache_prefix, '')
 
     async def acquire(self, task_id, ttl):
+        if await self.is_locked(task_id):
+            raise TaskAlreadyAcquired(task_id)
+
+        # Set the lock
         cache = await self.get_cache()
         resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
         if not resp:
-            raise TaskAlreadyAcquired(task_id)
+            raise Exception(f'Error acquiring {task_id}')
 
-        # Need to set an expiration for the lock in redis at
-        # creation time
+        # Need to set an expiration for the lock in redis at creation
+        # time
         refreshed = await self.refresh_lock(task_id, ttl)
         return refreshed
 
     async def is_locked(self, task_id):
         cache = await self.get_cache()
         resp = await cache.get(f'lock:{task_id}')
-        return resp
+        return resp is not None
 
     async def is_mine(self, task_id):
-        worker_id = await self.is_locked(task_id)
-        if not worker_id:
+        cache = await self.get_cache()
+        task_owner_id = await cache.get(f'lock:{task_id}')
+        if not task_owner_id:
             return False
-        return worker_id == self.worker_id
+        return task_owner_id.decode() == self.worker_id
 
     async def release(self, task_id):
         if not await self.is_locked(task_id):
@@ -231,7 +245,6 @@ class RedisStateManager:
 
         if not await self.is_mine(task_id):
             # You can't release a task for which you don't own a lock
-            raise ValueError()
             raise TaskAccessUnauthorized(task_id)
 
         cache = await self.get_cache()
