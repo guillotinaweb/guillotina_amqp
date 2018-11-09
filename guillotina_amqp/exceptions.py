@@ -14,5 +14,9 @@ class TaskAlreadyCanceled(Exception):
     pass
 
 
+class TaskAccessUnauthorized(Exception):
+    pass
+
+
 class TaskMaxRetriesReached(Exception):
     pass

@@ -1,5 +1,6 @@
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
+from guillotina_amqp.exceptions import TaskAccessUnauthorized
 
 import pytest
 import asyncio
@@ -61,4 +62,24 @@ async def test_clean_cancel_should_clean_from_canceled_list(configured_state_man
     assert 'foo' not in canceled_list
 
 
-# async def test_task_
+async def test_refresh_should_raise_if_task_is_not_yours(configured_state_manager):
+    state_manager = get_state_manager()
+    state_manager.worker_id = 'me'
+    await state_manager.acquire('footask', ttl=120)
+    await state_manager.refresh_lock('footask', ttl=20)
+    with pytest.raises(TaskAccessUnauthorized):
+        state_manager.worker_id = 'another_person'
+        await state_manager.refresh_lock('footask', 120)
+    state_manager.worker_id = 'me'
+    await state_manager.refresh_lock('footask', 20)
+
+
+async def test_release_should_raise_if_task_is_not_yours(configured_state_manager):
+    state_manager = get_state_manager()
+    state_manager.worker_id = 'me'
+    await state_manager.acquire('footask', ttl=120)
+    with pytest.raises(TaskAccessUnauthorized):
+        state_manager.worker_id = 'another_person'
+        await state_manager.release('footask')
+    state_manager.worker_id = 'me'
+    await state_manager.release('footask')

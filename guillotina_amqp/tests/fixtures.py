@@ -21,7 +21,7 @@ def base_settings_configurator(settings):
         "heartbeat": 800,
         "exchange": "",
         "queue": "guillotina",
-        "persistent_manager": "memory"
+        "persistent_manager": "memory",
     }
 
 
@@ -58,7 +58,7 @@ def configured_state_manager(request, redis_enabled, redis_disabled):
 
 
 @pytest.fixture('function')
-def redis_enabled(redis, dummy_request):
+def redis_enabled(redis):
     app_settings['amqp']['persistent_manager'] = 'redis'
     app_settings['redis_prefix_key'] = 'amqpjobs-'
     app_settings.update({"redis": {
@@ -73,6 +73,6 @@ def redis_enabled(redis, dummy_request):
 
 
 @pytest.fixture('function')
-def redis_disabled(dummy_request):
+def redis_disabled():
     app_settings['amqp']['persistent_manager'] = 'memory'
     yield

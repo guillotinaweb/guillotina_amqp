@@ -4,6 +4,7 @@ from guillotina.component import get_utility
 from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
+from guillotina_amqp.exceptions import TaskAccessUnauthorized
 
 from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
@@ -65,24 +66,37 @@ class MemoryStateManager:
         lock.acquire(ttl=ttl)
         self._locks[task_id] = lock
 
+    async def is_mine(self, task_id):
+        if task_id not in self._locks:
+            raise TaskNotFoundException(task_id)
+        lock = self._locks[task_id]
+        return lock.locked() and lock.worker_id == self.worker_id
+
     async def is_locked(self, task_id):
         if task_id not in self._locks:
             return False
         return self._locks[task_id].locked()
 
     async def release(self, task_id):
-        if await self.is_locked(task_id):
-            # Release lock
-            self._locks[task_id].release()
-        # Remove it from data structure
+        if not await self.is_mine(task_id):
+            # You can't refresh a lock that's not yours
+            raise TaskAccessUnauthorized(task_id)
+        # Release lock and pop it from data structure
+        self._locks[task_id].release()
         self._locks.pop(task_id, None)
 
     async def refresh_lock(self, task_id, ttl):
         if task_id not in self._locks:
-            raise Exception(f'{task_id} not found')
-        lock = self._locks[task_id]
-        if lock.worker_id != self.worker_id:
-            raise Exception(f"You can't refresh a lock that's not yours")
+            raise TaskNotFoundException(task_id)
+
+        if not await self.is_locked(task_id):
+            raise Exception(f'Task {task_id} is not locked')
+
+        if not await self.is_mine(task_id):
+            # You can't refresh a lock that's not yours
+            raise TaskAccessUnauthorized(task_id)
+
+        # Refresh
         return self._locks[task_id].refresh_lock(ttl)
 
     async def cancel(self, task_id):
@@ -114,9 +128,11 @@ def get_state_manager():
 
     Currently we have two implementations: memory | redis
     """
+    persistent_manager = app_settings['amqp']['persistent_manager']
+    print(f"\n\tPERSISTENT_MANAGER: {persistent_manager}")
     return get_utility(
         IStateManagerUtility,
-        name=app_settings['amqp'].get('persistent_manager', 'memory')
+        name=persistent_manager,
     )
 
 
@@ -186,18 +202,39 @@ class RedisStateManager:
         refreshed = await self.refresh_lock(task_id, ttl)
         return refreshed
 
+    async def is_locked(self, task_id):
+        cache = await self.get_cache()
+        resp = await cache.get(f'lock:{task_id}')
+        return resp
+
+    async def is_mine(self, task_id):
+        worker_id = await self.is_locked(task_id)
+        if not worker_id:
+            return False
+        return worker_id == self.worker_id
+
     async def release(self, task_id):
+        if not await self.is_locked(task_id):
+            # There is no lock, nothing to do
+            return False
+        if not await self.is_mine(task_id):
+            # You can't release a task for which you don't own a lock
+            raise TaskAccessUnauthorized
         cache = await self.get_cache()
         resp = await cache.delete(f'lock:{task_id}')
         return resp > 0
 
     async def refresh_lock(self, task_id, ttl):
+        if not await self.is_locked(task_id):
+            # There is no lock, nothing to do
+            return False
+
+        if not await self.is_mine(task_id):
+            # You can't release a task for which you don't own a lock
+            raise ValueError()
+            raise TaskAccessUnauthorized(task_id)
+
         cache = await self.get_cache()
-        resp = await cache.get(f'lock:{task_id}')
-        if not resp:
-            raise Exception(f"Lock for {task_id} doesn't exist")
-        if resp != self.worker_id:
-            raise Exception(f"Can't refresh a task lock that's not yours")
         resp = await cache.expire(f'lock:{task_id}', ttl)
         return resp > 0
 
