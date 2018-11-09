@@ -244,17 +244,12 @@ class Worker:
             routing_key=self.QUEUE_MAIN,
         )
 
-        # Declare delayed queue
+        # Declare delayed queue: set TTL to move taks from delayed
+        # queue to main queue
         await channel.queue_declare(
             queue_name=self.QUEUE_DELAYED, durable=True,
             arguments={
                 'x-message-ttl': self.TTL_DELAYED,
-            })
-
-        # Automatically move taks from delayed queue to main queue
-        await channel.queue_declare(
-            queue_name=self.QUEUE_DELAYED, durable=True,
-            arguments={
                 'x-dead-letter-exchange': self.EXCHANGE,
                 'x-dead-letter-routing-key': self.QUEUE_MAIN,
             })
