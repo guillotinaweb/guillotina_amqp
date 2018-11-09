@@ -123,8 +123,9 @@ async def add_object_task(func, ob, *args, _request=None, _retries=3, **kwargs):
 
 class TimeoutLock(object):
     """Implements a Lock that can be acquired for """
-    def __init__(self):
+    def __init__(self, worker_id):
         self._lock = threading.Lock()
+        self.worker_id = worker_id
         self._thread = None
 
     def acquire(self, ttl=-1, blocking=True):

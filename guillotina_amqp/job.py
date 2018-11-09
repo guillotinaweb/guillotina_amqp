@@ -23,7 +23,6 @@ from zope.interface import alsoProvides
 import aiotask_context
 import logging
 import yarl
-import asyncio
 
 
 logger = logging.getLogger('guillotina_amqp')
@@ -151,11 +150,11 @@ class Job:
 
     async def __call__(self):
         request = None
+        result = None
         committed = False
         task_id = self.data['task_id']
         dotted_name = self.data['func']
         logger.info(f'Running task: {task_id}: {dotted_name}')
-
         try:
             # Update status
             await self.state_manager.update(self.data['task_id'], {
@@ -179,17 +178,10 @@ class Job:
             result = await func(*self.data['args'], **self.data['kwargs'])
             await commit(request)
             committed = True
-
-            self.task.set_result(result)
-
-        except asyncio.CancelledError as e:
-            logger.warning(f'Cancelled task: {self.data}', exc_info=True)
-            self.task.set_exception(e)
-
-        except Exception as e:
+        except Exception:
             logger.warning(f'Error executing task: {self.data}', exc_info=True)
-            self.task.set_exception(e)
-
+            raise
         finally:
             if request is not None and not committed:
                 await abort(request)
+            return result

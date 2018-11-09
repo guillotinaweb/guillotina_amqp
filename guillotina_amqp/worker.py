@@ -35,13 +35,6 @@ class Worker:
     total_run = 0
     total_errored = 0
     max_task_retries = 5
-    # RabbitMQ queue names defined here
-    EXCHANGE = app_settings['amqp']['exchange']
-    QUEUE_MAIN = app_settings['amqp']['queue']
-    QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
-    QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
-    TTL_ERRORED = 1000 * 60 * 60 * 24 * 7  # 1 week
-    TTL_DELAYED = 1000 * 60 * 1  # 1 minute
 
     def __init__(self, request=None, loop=None, max_size=5):
         self.request = request
@@ -51,6 +44,14 @@ class Worker:
         self._max_size = max_size
         self._closing = False
         self._state_manager = None
+
+        # RabbitMQ queue names defined here
+        self.EXCHANGE = app_settings['amqp']['exchange']
+        self.QUEUE_MAIN = app_settings['amqp']['queue']
+        self.QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
+        self.QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
+        self.TTL_ERRORED = 1000 * 60 * 60 * 24 * 7  # 1 week
+        self.TTL_DELAYED = 1000 * 60 * 1  # 1 minute
 
     @property
     def state_manager(self):
@@ -180,7 +181,12 @@ class Worker:
         })
         logger.info(f'Finished task: {task_id}: {dotted_name}')
 
-    async def _done_callback(self, task):
+    def _done_callback(self, task):
+        # We can't pass coroutiles to add_done_callback so we have to
+        # place it inside an ensure_future
+        asyncio.ensure_future(self._real_callback(task))
+
+    async def _real_callback(self, task):
         """This is called when a job finishes execution"""
         task_id = task._job.data['task_id']
         self._done.append(task)

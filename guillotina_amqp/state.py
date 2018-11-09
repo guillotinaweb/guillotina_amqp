@@ -36,6 +36,7 @@ class MemoryStateManager:
         self._data = LRU(size)
         self._locks = {}
         self._canceled = set()
+        self.worker_id = uuid.uuid4().hex
 
     async def update(self, task_id, data):
         # Updates existing data with new data
@@ -60,7 +61,7 @@ class MemoryStateManager:
 
         # Set new lock
         from guillotina_amqp.utils import TimeoutLock
-        lock = TimeoutLock()
+        lock = TimeoutLock(self.worker_id)
         lock.acquire(ttl=ttl)
         self._locks[task_id] = lock
 
@@ -79,6 +80,9 @@ class MemoryStateManager:
     async def refresh_lock(self, task_id, ttl):
         if task_id not in self._locks:
             raise Exception(f'{task_id} not found')
+        lock = self._locks[task_id]
+        if lock.worker_id != self.worker_id:
+            raise Exception(f"You can't refresh a lock that's not yours")
         return self._locks[task_id].refresh_lock(ttl)
 
     async def cancel(self, task_id):
@@ -189,6 +193,11 @@ class RedisStateManager:
 
     async def refresh_lock(self, task_id, ttl):
         cache = await self.get_cache()
+        resp = await cache.get(f'lock:{task_id}')
+        if not resp:
+            raise Exception(f"Lock for {task_id} doesn't exist")
+        if resp != self.worker_id:
+            raise Exception(f"Can't refresh a task lock that's not yours")
         resp = await cache.expire(f'lock:{task_id}', ttl)
         return resp > 0
 
