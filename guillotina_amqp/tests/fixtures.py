@@ -14,7 +14,7 @@ base_amqp_settings = {
     "heartbeat": 800,
     "exchange": "",
     "queue": "guillotina",
-    "persistent_manager": "memoryee",
+    "persistent_manager": "memory",
 }
 
 
