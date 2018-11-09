@@ -62,6 +62,13 @@ async def test_clean_cancel_should_clean_from_canceled_list(configured_state_man
     assert 'foo' not in canceled_list
 
 
+async def test_is_canceled_should_return_true_only_on_canceled_tasks(configured_state_manager, loop):
+    state_manager = get_state_manager(loop)
+    await state_manager.cancel('foo')
+    assert await state_manager.is_canceled('foo')
+    assert not await state_manager.is_canceled('bar')
+
+
 async def test_refresh_should_raise_if_task_is_not_yours(configured_state_manager, loop):
     state_manager = get_state_manager(loop)
     state_manager.worker_id = 'me'

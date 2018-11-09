@@ -2,7 +2,7 @@ from guillotina import testing
 import pytest
 from guillotina_amqp.worker import Worker
 from guillotina import app_settings
-
+import uuid
 
 base_amqp_settings = {
     "connection_factory": "guillotina_amqp.tests.mocks.amqp_connection_factory",
@@ -51,11 +51,11 @@ def amqp_worker(loop):
     {'redis_up': True},
     {'redis_up': False},
 ])
-def configured_state_manager(request, redis, dummy_request):
+def configured_state_manager(request, redis, dummy_request, loop):
     if request.param.get('redis_up'):
         # Redis
         app_settings['amqp']['persistent_manager'] = 'redis'
-        app_settings['redis_prefix_key'] = 'amqpjobs-'
+        app_settings['redis_prefix_key'] = f'amqpjobs-{uuid.uuid4()}-'
         app_settings.update({"redis": {
             'host': redis[0],
             'port': redis[1],
@@ -64,8 +64,17 @@ def configured_state_manager(request, redis, dummy_request):
                 "maxsize": 5,
             },
         }})
+        print('Running with redis')
         yield redis
+
+        # NOTE: we need to close the redis pool otherwise it's
+        # attached to the first loop and the nexts tests have new
+        # loops, which causes its to crash
+        from guillotina_rediscache.cache import close_redis_pool
+        loop.run_until_complete(close_redis_pool())
+
     else:
         # Memory
         app_settings['amqp']['persistent_manager'] = 'memory'
+        print('Running with memory')
         yield

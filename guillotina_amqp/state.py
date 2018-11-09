@@ -144,12 +144,19 @@ def get_state_manager(loop=None):
 class RedisStateManager:
     '''Implementation of the IStateManagerUtility with Redis
     '''
-    _cache_prefix = 'amqpjobs-'
 
     def __init__(self, loop=None):
+        self._cache_prefix = app_settings.get('redis_prefix_key', 'amqpjobs-')
         self.loop = loop
         self._cache = None
         self.worker_id = uuid.uuid4().hex
+
+    def lock_prefix(self, task_id):
+        return f'{self._cache_prefix}lock:{task_id}'
+
+    @property
+    def cancel_prefix(self):
+        return f'{self._cache_prefix}cancel'
 
     def set_loop(self, loop=None):
         if loop:
@@ -206,7 +213,7 @@ class RedisStateManager:
 
         # Set the lock
         cache = await self.get_cache()
-        resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
+        resp = await cache.setnx(self.lock_prefix(task_id), self.worker_id)
         if not resp:
             raise Exception(f'Error acquiring {task_id}')
 
@@ -217,12 +224,12 @@ class RedisStateManager:
 
     async def is_locked(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.get(f'lock:{task_id}')
+        resp = await cache.get(self.lock_prefix(task_id))
         return resp is not None
 
     async def is_mine(self, task_id):
         cache = await self.get_cache()
-        task_owner_id = await cache.get(f'lock:{task_id}')
+        task_owner_id = await cache.get(self.lock_prefix(task_id))
         if not task_owner_id:
             return False
         return task_owner_id.decode() == self.worker_id
@@ -235,7 +242,7 @@ class RedisStateManager:
             # You can't release a task for which you don't own a lock
             raise TaskAccessUnauthorized
         cache = await self.get_cache()
-        resp = await cache.delete(f'lock:{task_id}')
+        resp = await cache.delete(self.lock_prefix(task_id))
         return resp > 0
 
     async def refresh_lock(self, task_id, ttl):
@@ -248,30 +255,31 @@ class RedisStateManager:
             raise TaskAccessUnauthorized(task_id)
 
         cache = await self.get_cache()
-        resp = await cache.expire(f'lock:{task_id}', ttl)
+        resp = await cache.expire(self.lock_prefix(task_id), ttl)
         return resp > 0
 
     async def cancel(self, task_id):
         cache = await self.get_cache()
         current_time = time.time()
-        resp = await cache.zadd(f'{self._cache_prefix}cancel',
+        resp = await cache.zadd(self.cancel_prefix,
                                 current_time, task_id)
         return resp > 0
 
     async def cancelation_list(self):
         cache = await self.get_cache()
-        async for val, score in cache.izscan(f'{self._cache_prefix}cancel'):
+        async for val, score in cache.izscan(self.cancel_prefix):
             yield val.decode()
 
     async def clean_canceled(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.zrem(f'{self._cache_prefix}cancel', task_id)
+        resp = await cache.zrem(self.cancel_prefix, task_id)
         return resp > 0
 
     async def is_canceled(self, task_id):
-        cache = await self.get_cache()
-        value = await cache.get(f'{self._cache_prefix}cancel' + task_id)
-        return value is not None
+        async for tid in self.cancelation_list():
+            if tid == task_id:
+                return True
+        return False
 
 
 class TaskState:
