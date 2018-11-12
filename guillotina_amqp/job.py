@@ -25,7 +25,7 @@ import logging
 import yarl
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.job')
 
 
 def login_user(request, user_data):
@@ -155,33 +155,31 @@ class Job:
         task_id = self.data['task_id']
         dotted_name = self.data['func']
         logger.info(f'Running task: {task_id}: {dotted_name}')
-        try:
-            # Update status
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'running'
-            })
-            # Clone request for task
-            request = await self.create_request()
 
-            req_data = self.data['req_data']
-            if 'user' in req_data:
-                login_user(request, req_data['user'])
+        # Update status
+        await self.state_manager.update(self.data['task_id'], {
+            'status': 'running'
+        })
+        # Clone request for task
+        request = await self.create_request()
 
-            # Parse the function to run
-            func = resolve_dotted_name(self.data['func'])
-            if ITaskDefinition.providedBy(func):
-                func = func.func
-            if hasattr(func, '__real_func__'):
-                # from decorators
-                func = func.__real_func__
-            # Run the actual function
-            result = await func(*self.data['args'], **self.data['kwargs'])
-            await commit(request)
-            committed = True
-        except Exception:
-            logger.warning(f'Error executing task: {self.data}', exc_info=True)
-            raise
-        finally:
-            if request is not None and not committed:
-                await abort(request)
-            return result
+        req_data = self.data['req_data']
+        if 'user' in req_data:
+            login_user(request, req_data['user'])
+
+        # Parse the function to run
+        func = resolve_dotted_name(self.data['func'])
+        if ITaskDefinition.providedBy(func):
+            func = func.func
+        if hasattr(func, '__real_func__'):
+            # from decorators
+            func = func.__real_func__
+
+        # Run the actual function
+        result = await func(*self.data['args'], **self.data['kwargs'])
+        await commit(request)
+        committed = True
+
+        if request is not None and not committed:
+            await abort(request)
+        return result

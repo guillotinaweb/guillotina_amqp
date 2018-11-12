@@ -71,8 +71,7 @@ async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_
 
     # Check that the it was indeed cancelled
     state = await ts.get_state()
-    assert state['status'] == 'errored'
-    assert 'CancelledError' in state['error']
+    assert state['status'] == 'canceled'
     await asyncio.sleep(0.1)  # prevent possible race condition here
     assert amqp_worker.total_run == 1
     aiotask_context.set('request', None)
@@ -90,10 +89,24 @@ async def test_decorator_task(dummy_request, amqp_worker):
     aiotask_context.set('request', None)
 
 
-async def test_worker_retries_should_not_exceed_the_limit(dummy_request, amqp_worker):
+async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
+                                                          amqp_worker, amqp_queues):
     aiotask_context.set('request', dummy_request)
     ts = await _test_failing_func()
     # wait for it to finish
     await ts.join(0.1)
     assert amqp_worker.total_run == 1
+    await amqp_worker.join()
+    state = await ts.get_state()
+    assert state['status'] == 'errored'
+    assert state['job_retries'] == 1
+
+    task_id = state['job_data']['task_id']
+
+    # Check that the job has been moved to the delay queue and
+    # verify the task id
+
+    assert len(amqp_queues['guillotina-delay']) > 0
+    assert amqp_queues['guillotina-delay'].pop()['message']['task_id'] == task_id
+
     aiotask_context.set('request', None)

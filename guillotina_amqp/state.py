@@ -22,7 +22,7 @@ except ImportError:
     aioredis = None
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.state')
 
 DEFAULT_LOCK_TTL_S = 120
 
@@ -238,7 +238,7 @@ class TaskState:
             data = await util.get(self.task_id)
             if not data:
                 raise TaskNotFoundException(self.task_id)
-            if data.get('status') in ('finished', 'errored'):
+            if data.get('status') in ('finished', 'errored', 'canceled'):
                 return data
             await asyncio.sleep(wait)
 
@@ -254,6 +254,7 @@ class TaskState:
         possible statuses:
         - scheduled
         - consumed
+        - canceled
         - running
         - finished
         - errored
