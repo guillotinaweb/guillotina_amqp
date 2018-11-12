@@ -1,6 +1,7 @@
 from guillotina import testing
 import pytest
 from guillotina_amqp.worker import Worker
+from guillotina_amqp import amqp
 from guillotina import app_settings
 import uuid
 
@@ -72,9 +73,14 @@ def configured_state_manager(request, redis, dummy_request, loop):
         # loops, which causes its to crash
         from guillotina_rediscache.cache import close_redis_pool
         loop.run_until_complete(close_redis_pool())
-
     else:
         # Memory
         app_settings['amqp']['persistent_manager'] = 'memory'
         print('Running with memory')
         yield
+
+        
+@pytest.fixture('function')
+async def amqp_queues(dummy_request):
+    channel, transport, protocol = await amqp.get_connection()
+    return protocol.queues
