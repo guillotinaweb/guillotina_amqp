@@ -17,7 +17,7 @@ import logging
 import time
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.worker')
 
 
 class Worker:
@@ -69,6 +69,8 @@ class Worker:
         a new task in a rabbitmq queue)
 
         """
+        logger.debug(f'Queued job {body}')
+
         # Deserialize job description
         if not isinstance(body, str):
             body = body.decode('utf-8')
@@ -115,9 +117,10 @@ class Worker:
         task._job = job
         job.task = task
         self._running.append(task)
-        task.add_done_callback(self._done_callback)
+        task.add_done_callback(self._task_done_callback)
 
     async def _handle_canceled(self, task):
+        self._running.remove(task)
         task_id = task._job.data['task_id']
         # ACK to main queue to it is not scheduled anymore
         await task._job.channel.basic_client_ack(
@@ -148,9 +151,11 @@ class Worker:
     async def _handle_retry(self, task, current_retries):
         task_id = task._job.data['task_id']
         channel = task._job.channel
+        logger.debug(f'handle_retry: task {task_id} retries {current_retries}')
         # Increment retry count
         await self.state_manager.update(task_id, {
             'job_retries': current_retries + 1,
+            'status': 'errored'
         })
 
         # Publish task data to delay queue
@@ -181,24 +186,26 @@ class Worker:
         })
         logger.info(f'Finished task: {task_id}: {dotted_name}')
 
-    def _done_callback(self, task):
-        # We can't pass coroutiles to add_done_callback so we have to
+    def _task_done_callback(self, task):
+        # We can't pass coroutines to add_done_callback so we have to
         # place it inside an ensure_future
-        asyncio.ensure_future(self._real_callback(task))
+        asyncio.ensure_future(self._task_callback(task))
 
-    async def _real_callback(self, task):
+    async def _task_callback(self, task):
         """This is called when a job finishes execution"""
         task_id = task._job.data['task_id']
         self._done.append(task)
         self.total_run += 1
 
-        # Task finished with error
-        exception = task.exception()
-        if exception:
-            # If task was cancelled
-            if isinstance(exception, asyncio.CancelledError):
-                return await self._handle_canceled(task)
-
+        try:
+            result = task.result()
+            logger.debug(f'Task data: {task._job.data}, result: {result}')
+        except asyncio.CancelledError:
+            logger.warning(f'Task got cancelled: {task._job.data}', exc_info=True)
+            return await self._handle_canceled(task)
+        except Exception:
+            # Error during execution of the task
+            #
             # If max retries reached
             existing_data = await self.state_manager.get(task_id)
             retrials = existing_data.get('job_retries', 0)
@@ -207,9 +214,9 @@ class Worker:
 
             # Otherwise let task be retried
             return await self._handle_retry(task, retrials)
-
-        # If task ran successfully, ACK main queue and finish
-        return await self._handle_successful(task)
+        else:
+            # If task ran successfully, ACK main queue and finish
+            return await self._handle_successful(task)
 
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and

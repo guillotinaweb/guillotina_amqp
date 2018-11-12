@@ -19,7 +19,7 @@ import threading
 import asyncio
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.utils')
 
 
 async def cancel_task(task_id):
