@@ -24,6 +24,11 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
+    async def is_mine(self, task_id):
+        """Returns whether the worker has a lock on a given task_idq
+        """
+        raise NotImplementedError()
+
     async def cancel(self, task_id):
         """
         Sets task_id to the canceled set of tasks

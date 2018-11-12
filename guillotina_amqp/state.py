@@ -4,6 +4,7 @@ from guillotina.component import get_utility
 from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
+from guillotina_amqp.exceptions import TaskAccessUnauthorized
 
 from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
@@ -38,6 +39,9 @@ class MemoryStateManager:
         self._canceled = set()
         self.worker_id = uuid.uuid4().hex
 
+    def set_loop(self, loop=None):
+        pass
+
     async def update(self, task_id, data):
         # Updates existing data with new data
         existing = await self.get(task_id)
@@ -65,24 +69,37 @@ class MemoryStateManager:
         lock.acquire(ttl=ttl)
         self._locks[task_id] = lock
 
+    async def is_mine(self, task_id):
+        if task_id not in self._locks:
+            raise TaskNotFoundException(task_id)
+        lock = self._locks[task_id]
+        return lock.locked() and lock.worker_id == self.worker_id
+
     async def is_locked(self, task_id):
         if task_id not in self._locks:
             return False
         return self._locks[task_id].locked()
 
     async def release(self, task_id):
-        if await self.is_locked(task_id):
-            # Release lock
-            self._locks[task_id].release()
-        # Remove it from data structure
+        if not await self.is_mine(task_id):
+            # You can't refresh a lock that's not yours
+            raise TaskAccessUnauthorized(task_id)
+        # Release lock and pop it from data structure
+        self._locks[task_id].release()
         self._locks.pop(task_id, None)
 
     async def refresh_lock(self, task_id, ttl):
         if task_id not in self._locks:
-            raise Exception(f'{task_id} not found')
-        lock = self._locks[task_id]
-        if lock.worker_id != self.worker_id:
-            raise Exception(f"You can't refresh a lock that's not yours")
+            raise TaskNotFoundException(task_id)
+
+        if not await self.is_locked(task_id):
+            raise Exception(f'Task {task_id} is not locked')
+
+        if not await self.is_mine(task_id):
+            # You can't refresh a lock that's not yours
+            raise TaskAccessUnauthorized(task_id)
+
+        # Refresh
         return self._locks[task_id].refresh_lock(ttl)
 
     async def cancel(self, task_id):
@@ -109,26 +126,41 @@ class MemoryStateManager:
 _EMPTY = object()
 
 
-def get_state_manager():
+def get_state_manager(loop=None):
     """Factory that gets the configured state manager.
 
     Currently we have two implementations: memory | redis
     """
-    return get_utility(
+    utility = get_utility(
         IStateManagerUtility,
-        name=app_settings['amqp'].get('persistent_manager', 'memory')
+        name=app_settings['amqp']['persistent_manager'],
     )
+    if loop:
+        utility.set_loop(loop)
+    return utility
 
 
 @configure.utility(provides=IStateManagerUtility, name='redis')
 class RedisStateManager:
     '''Implementation of the IStateManagerUtility with Redis
     '''
-    _cache_prefix = 'amqpjobs-'
 
-    def __init__(self):
+    def __init__(self, loop=None):
+        self._cache_prefix = app_settings.get('redis_prefix_key', 'amqpjobs-')
+        self.loop = loop
         self._cache = None
         self.worker_id = uuid.uuid4().hex
+
+    def lock_prefix(self, task_id):
+        return f'{self._cache_prefix}lock:{task_id}'
+
+    @property
+    def cancel_prefix(self):
+        return f'{self._cache_prefix}cancel'
+
+    def set_loop(self, loop=None):
+        if loop:
+            self.loop = loop
 
     async def get_cache(self):
         if self._cache == _EMPTY:
@@ -140,7 +172,7 @@ class RedisStateManager:
             return None
 
         if 'redis' in app_settings:
-            self._cache = aioredis.Redis(await get_redis_pool())
+            self._cache = aioredis.Redis(await get_redis_pool(loop=self.loop))
             return self._cache
         else:
             self._cache = _EMPTY
@@ -176,52 +208,78 @@ class RedisStateManager:
             yield key.decode().replace(self._cache_prefix, '')
 
     async def acquire(self, task_id, ttl):
-        cache = await self.get_cache()
-        resp = await cache.setnx(f'lock:{task_id}', self.worker_id)
-        if not resp:
+        if await self.is_locked(task_id):
             raise TaskAlreadyAcquired(task_id)
 
-        # Need to set an expiration for the lock in redis at
-        # creation time
+        # Set the lock
+        cache = await self.get_cache()
+        resp = await cache.setnx(self.lock_prefix(task_id), self.worker_id)
+        if not resp:
+            raise Exception(f'Error acquiring {task_id}')
+
+        # Need to set an expiration for the lock in redis at creation
+        # time
         refreshed = await self.refresh_lock(task_id, ttl)
         return refreshed
 
-    async def release(self, task_id):
+    async def is_locked(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.delete(f'lock:{task_id}')
+        resp = await cache.get(self.lock_prefix(task_id))
+        return resp is not None
+
+    async def is_mine(self, task_id):
+        cache = await self.get_cache()
+        task_owner_id = await cache.get(self.lock_prefix(task_id))
+        if not task_owner_id:
+            return False
+        return task_owner_id.decode() == self.worker_id
+
+    async def release(self, task_id):
+        if not await self.is_locked(task_id):
+            # There is no lock, nothing to do
+            return False
+        if not await self.is_mine(task_id):
+            # You can't release a task for which you don't own a lock
+            raise TaskAccessUnauthorized
+        cache = await self.get_cache()
+        resp = await cache.delete(self.lock_prefix(task_id))
         return resp > 0
 
     async def refresh_lock(self, task_id, ttl):
+        if not await self.is_locked(task_id):
+            # There is no lock, nothing to do
+            return False
+
+        if not await self.is_mine(task_id):
+            # You can't release a task for which you don't own a lock
+            raise TaskAccessUnauthorized(task_id)
+
         cache = await self.get_cache()
-        resp = await cache.get(f'lock:{task_id}')
-        if not resp:
-            raise Exception(f"Lock for {task_id} doesn't exist")
-        if resp != self.worker_id:
-            raise Exception(f"Can't refresh a task lock that's not yours")
-        resp = await cache.expire(f'lock:{task_id}', ttl)
+        resp = await cache.expire(self.lock_prefix(task_id), ttl)
         return resp > 0
 
     async def cancel(self, task_id):
         cache = await self.get_cache()
         current_time = time.time()
-        resp = await cache.zadd(f'{self._cache_prefix}cancel',
+        resp = await cache.zadd(self.cancel_prefix,
                                 current_time, task_id)
         return resp > 0
 
     async def cancelation_list(self):
         cache = await self.get_cache()
-        async for val, score in cache.izscan(f'{self._cache_prefix}cancel'):
+        async for val, score in cache.izscan(self.cancel_prefix):
             yield val.decode()
 
     async def clean_canceled(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.zrem(f'{self._cache_prefix}cancel', task_id)
+        resp = await cache.zrem(self.cancel_prefix, task_id)
         return resp > 0
 
     async def is_canceled(self, task_id):
-        cache = await self.get_cache()
-        value = await cache.get(f'{self._cache_prefix}cancel' + task_id)
-        return value is not None
+        async for tid in self.cancelation_list():
+            if tid == task_id:
+                return True
+        return False
 
 
 class TaskState:
