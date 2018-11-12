@@ -1,6 +1,7 @@
 from guillotina import testing
 import pytest
 from guillotina_amqp.worker import Worker
+from guillotina_amqp import amqp
 from guillotina import app_settings
 
 
@@ -76,3 +77,9 @@ def redis_enabled(redis, dummy_request):
 def redis_disabled(dummy_request):
     app_settings['amqp']['persistent_manager'] = 'memory'
     yield
+
+
+@pytest.fixture('function')
+async def amqp_queues(dummy_request):
+    channel, transport, protocol = await amqp.get_connection()
+    return protocol.queues
