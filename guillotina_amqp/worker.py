@@ -145,7 +145,7 @@ class Worker:
         # Update status to errored with the traceback
         await self.state_manager.update(task_id, {
             'status': 'errored',
-            'errors': task.print_stack(),
+            'error': task.print_stack(),
         })
 
     async def _handle_retry(self, task, current_retries):
@@ -155,12 +155,13 @@ class Worker:
         # Increment retry count
         await self.state_manager.update(task_id, {
             'job_retries': current_retries + 1,
-            'status': 'errored'
+            'status': 'errored',
+            'error': task.print_stack()
         })
 
         # Publish task data to delay queue
         await channel.publish(
-            task._job.data,
+            json.dumps(task._job.data),
             exchange_name=self.EXCHANGE,
             routing_key=self.QUEUE_DELAYED,
             properties={
@@ -231,35 +232,21 @@ class Worker:
             type_name='direct',
             durable=True)
 
-        # Errored tasks will remain a limited period of time
-        await channel.queue_declare(
-            queue_name=self.QUEUE_ERRORED, durable=True,
-            arguments={
-                'x-message-ttl': self.TTL_ERRORED,
-            })
+        # Declare errored queue
+        await self.queue_errored(channel, passive=False)
 
-        # Automatically move NACK tasks to errored queue
-        await channel.queue_declare(
-            queue_name=self.QUEUE_MAIN, durable=True,
-            arguments={
-                'x-dead-letter-exchange': self.EXCHANGE,
-                'x-dead-letter-routing-key': self.QUEUE_ERRORED,
-            })
+        # Declare main queue
+        await self.queue_main(channel, passive=False)
+
         await channel.queue_bind(
             exchange_name=self.EXCHANGE,
             queue_name=self.QUEUE_MAIN,
             routing_key=self.QUEUE_MAIN,
         )
 
-        # Declare delayed queue: set TTL to move taks from delayed
-        # queue to main queue
-        await channel.queue_declare(
-            queue_name=self.QUEUE_DELAYED, durable=True,
-            arguments={
-                'x-message-ttl': self.TTL_DELAYED,
-                'x-dead-letter-exchange': self.EXCHANGE,
-                'x-dead-letter-routing-key': self.QUEUE_MAIN,
-            })
+        # Declare delayed queue
+        await self.queue_delayed(channel, passive=False)
+
         await channel.queue_bind(
             exchange_name=self.EXCHANGE,
             queue_name=self.QUEUE_DELAYED,
@@ -278,6 +265,38 @@ class Worker:
         asyncio.ensure_future(self.update_status())
 
         logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
+
+    async def queue_main(self, channel, passive=True):
+        # Main queue
+        # Automatically move NACK tasks to errored queue
+        return await channel.queue_declare(
+            queue_name=self.QUEUE_MAIN, durable=True,
+            passive=passive,
+            arguments={
+                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-routing-key': self.QUEUE_ERRORED,
+            })
+
+    async def queue_delayed(self, channel, passive=True):
+        # Declare delayed queue: set TTL to move taks from delayed
+        # queue to main queue
+        return await channel.queue_declare(
+            queue_name=self.QUEUE_DELAYED, durable=True,
+            passive=passive,
+            arguments={
+                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-routing-key': self.QUEUE_MAIN,
+                'x-message-ttl': self.TTL_DELAYED,
+            })
+
+    async def queue_errored(self, channel, passive=True):
+        # Errored tasks will remain a limited period of time
+        return await channel.queue_declare(
+            queue_name=self.QUEUE_ERRORED, durable=True,
+            passive=passive,
+            arguments={
+                'x-message-ttl': self.TTL_ERRORED,
+            })
 
     def cancel(self):
         """

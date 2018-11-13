@@ -45,7 +45,7 @@ async def handle_connection_closed(name, protocol):
             return
         # we just remove so next time get_connection is retrieved, a new
         # connection is retrieved.
-        logger.warn('Disconnect detected with rabbitmq connection, forcing reconnect')
+        logger.warning('Disconnect detected with rabbitmq connection, forcing reconnect')
         await remove_connection(name)
     except Exception:
         logger.error('Error waiting for connection to close', exc_info=True)
