@@ -33,7 +33,7 @@ testing.configure_with(base_settings_configurator)
 
 
 @pytest.fixture('function')
-def amqp_worker(loop):
+def amqp_worker(loop, rabbitmq_container):
     # Create worker
     _worker = Worker(loop=loop)
     _worker.update_status_interval = 2
@@ -79,8 +79,24 @@ def configured_state_manager(request, redis, dummy_request, loop):
         print('Running with memory')
         yield
 
-        
+
 @pytest.fixture('function')
-async def amqp_queues(dummy_request):
+async def amqp_channel():
     channel, transport, protocol = await amqp.get_connection()
-    return protocol.queues
+    return channel
+
+
+@pytest.fixture('function')
+def rabbitmq_container(rabbitmq):
+    app_settings['amqp'] = {
+        "connection_factory": "aioamqp.connect",
+        "host": rabbitmq[0],
+        "port": rabbitmq[1],
+        "login": "guest",
+        "password": "guest",
+        "vhost": "/",
+        "heartbeat": 800,
+        "exchange": "guillotina",
+        "queue": "guillotina",
+        "persistent_manager": "memory"
+    }
