@@ -36,7 +36,7 @@ setup(
             'pytest-aiohttp',
             'pytest-cov',
             'coverage==4.4',
-            'pytest_docker_fixtures==1.2.3',
+            'pytest_docker_fixtures==1.2.4',
         ]
     },
     license='BSD',
