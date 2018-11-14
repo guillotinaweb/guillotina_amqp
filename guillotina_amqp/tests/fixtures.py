@@ -79,7 +79,7 @@ def configured_state_manager(request, redis, dummy_request, loop):
         print('Running with memory')
         yield
 
-        
+
 @pytest.fixture('function')
 async def amqp_queues(dummy_request):
     channel, transport, protocol = await amqp.get_connection()

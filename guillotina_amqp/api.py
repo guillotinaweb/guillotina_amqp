@@ -1,9 +1,7 @@
 from guillotina import configure
 
-from aiohttp.web_exceptions import HTTPPreconditionFailed
-from aiohttp.web_exceptions import HTTPNotFound
-# TODO: change to guillotina.response to upgrate to g4
-# from guillotina.response import HTTPPreconditionFailed
+from guillotina.response import HTTPPreconditionFailed
+from guillotina.response import HTTPNotFound
 
 from .state import get_state_manager
 
@@ -34,19 +32,15 @@ async def info_task(context, request):
 
     task_id = request.rel_url.query.get('task_id')
     if not task_id:
-        raise HTTPPreconditionFailed(reason='Missing task_id')
-        # TODO: replace for below to upgrade to g4
-        # raise HTTPPreconditionFailed(content={
-        #     'reason': 'Missing task_id'
-        # })
+        raise HTTPPreconditionFailed(content={
+            'reason': 'Missing task_id'
+        })
 
     data = await mngr.get(task_id)
     if not data:
-        raise HTTPNotFound(reason='Task not found')
-        # TODO: replace for below to upgrade to g4
-        # raise HTTPNotFound(content={
-        #     'reason': 'Task not found'
-        # })
+        raise HTTPNotFound(content={
+            'reason': 'Task not found'
+        })
 
     return await mngr.get(task_id)
 
@@ -66,11 +60,9 @@ async def cancel_task(context, request):
 
     task_id = request.rel_url.query.get('task_id')
     if not task_id:
-        raise HTTPPreconditionFailed(reason='Missing task_id')
-        # TODO: replace for below to upgrade to g4
-        # raise HTTPPreconditionFailed(content={
-        #     'reason': 'Missing task_id'
-        # })
+        raise HTTPPreconditionFailed(content={
+            'reason': 'Missing task_id'
+        })
 
     if await mngr.is_canceled(task_id):
         return {
@@ -79,11 +71,9 @@ async def cancel_task(context, request):
         }
 
     if not await mngr.exists(task_id):
-        raise HTTPNotFound(reason='Task unexisting task')
-        # TODO: replace for below to upgrade to g4
-        # raise HTTPNotFound(content={
-        #     'reason': 'Task not found'
-        # })
+        raise HTTPNotFound(content={
+            'reason': 'Task not found'
+        })
 
     if await mngr.cancel(task_id):
         return {

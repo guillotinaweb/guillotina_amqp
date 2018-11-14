@@ -31,7 +31,7 @@ async def test_info_task(container_requester, dummy_request):
         # Check error status if task_id not specified
         resp, status = await requester('GET', '/db/guillotina/@amqp-info')
         assert status == 412
-        assert 'Missing task_id' in resp.decode()
+        assert resp['reason'] == 'Missing task_id'
 
         # Check returns correctly if existing task_id
         resp, status = await requester(
@@ -43,7 +43,7 @@ async def test_info_task(container_requester, dummy_request):
         resp, status = await requester(
             'GET', f'/db/guillotina/@amqp-info?task_id=foo')
         assert status == 404
-        assert 'Task not found' in resp.decode()
+        assert resp['reason'] == 'Task not found'
 
     aiotask_context.set('request', None)
 
@@ -59,7 +59,7 @@ async def test_cancel_task(container_requester, dummy_request):
         resp, status = await requester(
             'DELETE', '/db/guillotina/@amqp-cancel')
         assert status == 412
-        assert 'Missing task_id' in resp.decode()
+        assert resp['reason'] == 'Missing task_id'
 
         # Check returns correctly if existing task_id
         resp, status = await requester(
