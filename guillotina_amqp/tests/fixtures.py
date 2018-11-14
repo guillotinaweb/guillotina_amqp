@@ -88,7 +88,7 @@ async def amqp_channel():
 
 @pytest.fixture('function')
 def rabbitmq_container(rabbitmq):
-    app_settings['amqp'] = {
+    app_settings['amqp'].update({
         "connection_factory": "aioamqp.connect",
         "host": rabbitmq[0],
         "port": rabbitmq[1],
@@ -98,5 +98,4 @@ def rabbitmq_container(rabbitmq):
         "heartbeat": 800,
         "exchange": "guillotina",
         "queue": "guillotina",
-        "persistent_manager": "memory"
-    }
+    })
