@@ -34,7 +34,8 @@ class MemoryStateManager:
     Meaningless for anyting other than tests
     '''
     def __init__(self, size=10):
-        self._data = LRU(size)
+        self.size = size
+        self._data = LRU(self.size)
         self._locks = {}
         self._canceled = set()
         self.worker_id = uuid.uuid4().hex
@@ -121,6 +122,11 @@ class MemoryStateManager:
 
     async def is_canceled(self, task_id):
         return task_id in self._canceled
+
+    async def _clean(self):
+        self._data = LRU(self.size)
+        self._locks = {}
+        self._canceled = set()
 
 
 _EMPTY = object()
@@ -280,6 +286,9 @@ class RedisStateManager:
             if tid == task_id:
                 return True
         return False
+
+    async def _clean(self):
+        await self._cache.flushall()
 
 
 class TaskState:

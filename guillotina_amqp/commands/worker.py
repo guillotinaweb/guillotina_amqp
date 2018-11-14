@@ -15,11 +15,11 @@ class EventLoopWatchdog(threading.Thread):
     """Takes care of exiting worker after specified loop no-activity
     timeout for the worker loop.
 
-    This prevents a task from taking the asynio loop forever and
-    preventing other tasks to run. If a task hangs, the watchdog will
-    exit the worker and unfinished jobs will be retaken by other
-    workers.
+    This prevents a task from taking over the asynio loop forever and
+    preventing other tasks to run.
 
+    If a task hangs, the watchdog will exit the worker and unfinished jobs
+    will be taken by other workers.
     """
     def __init__(self, loop, timeout):
         super().__init__()
@@ -41,8 +41,8 @@ class EventLoopWatchdog(threading.Thread):
             logger.debug(f'Last refreshed watchdog was {diff}s. ago')
 
     async def probe(self):
-        """This method just to trigger a context switching in the event loop
-        in and sense the delta between the ideal timeout (10s)
+        """This method is used to trigger a context switching in the event
+        loop and measure elapsed time between runs (10s)
         """
         while True:
             await asyncio.sleep(10)
@@ -66,10 +66,13 @@ class WorkerCommand(Command):
         return parser
 
     async def run(self, arguments, settings, app):
-        timeout = arguments.auto_kill_timeout
         aiotask_context.set('request', self.request)
+
+        # Run the actual worker in the same loop
         worker = Worker(self.request, self.get_loop())
         await worker.start()
+
+        timeout = arguments.auto_kill_timeout
         if timeout > 0:
             # We need to run this outside the main loop and the current thread
             thread = EventLoopWatchdog(self.get_loop(), timeout)
