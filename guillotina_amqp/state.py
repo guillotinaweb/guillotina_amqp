@@ -25,7 +25,7 @@ except ImportError:
 
 logger = logging.getLogger('guillotina_amqp.state')
 
-DEFAULT_LOCK_TTL_S = 120
+DEFAULT_LOCK_TTL_S = 60 * 1  # 1 minute
 
 
 @configure.utility(provides=IStateManagerUtility, name='memory')
