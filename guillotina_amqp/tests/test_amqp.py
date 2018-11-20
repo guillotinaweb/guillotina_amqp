@@ -121,9 +121,9 @@ async def test_decorator_task(dummy_request, amqp_worker):
     aiotask_context.set('request', None)
 
 
-async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
-                                                          amqp_worker,
-                                                          amqp_channel):
+async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
+                                                                amqp_worker,
+                                                                amqp_channel):
     aiotask_context.set('request', dummy_request)
     ts = await _test_failing_func()
     # wait for it to finish
@@ -147,4 +147,39 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
         assert decoded['task_id'] == task_id
 
     await amqp_channel.basic_consume(callback, queue_name=delayed['queue'])
+    aiotask_context.set('request', None)
+
+
+async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
+                                                          amqp_worker,
+                                                          amqp_channel):
+    aiotask_context.set('request', dummy_request)
+
+    # Add failing function and wait for it to finish
+    ts = await _test_failing_func()
+
+    # Fake job retries to max
+    max_retries = amqp_worker.max_task_retries
+    await amqp_worker.state_manager.update(ts.task_id, {
+        'job_retries': max_retries
+    })
+    # Wait for it to finish
+    await ts.join(0.1)
+    # Check that worker ran only one
+    assert amqp_worker.total_run == 1
+    await amqp_worker.join()
+
+    # Check that it retries up to max
+    state = await ts.get_state()
+    retried = state['job_retries']
+    assert retried == max_retries
+
+    # Check that it went to error queue
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    delayed_queue = await amqp_worker.queue_delayed(amqp_channel)
+    errored_queue = await amqp_worker.queue_errored(amqp_channel)
+    assert main_queue['consumer_count'] == 1
+    assert delayed_queue['message_count'] == 0
+    assert errored_queue['message_count'] == 1
+
     aiotask_context.set('request', None)

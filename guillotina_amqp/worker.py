@@ -233,21 +233,24 @@ class Worker:
             type_name='direct',
             durable=True)
 
-        # Declare errored queue
+        # Declare errored queue and bind it
         await self.queue_errored(channel, passive=False)
+        await channel.queue_bind(
+            exchange_name=self.EXCHANGE,
+            queue_name=self.QUEUE_ERRORED,
+            routing_key=self.QUEUE_ERRORED,
+        )
 
-        # Declare main queue
+        # Declare main queue and bind it
         await self.queue_main(channel, passive=False)
-
         await channel.queue_bind(
             exchange_name=self.EXCHANGE,
             queue_name=self.QUEUE_MAIN,
             routing_key=self.QUEUE_MAIN,
         )
 
-        # Declare delayed queue
+        # Declare delayed queue and bind it
         await self.queue_delayed(channel, passive=False)
-
         await channel.queue_bind(
             exchange_name=self.EXCHANGE,
             queue_name=self.QUEUE_DELAYED,
