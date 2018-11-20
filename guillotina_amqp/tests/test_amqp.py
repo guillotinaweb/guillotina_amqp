@@ -176,10 +176,8 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
 
     # Check that it went to error queue
     main_queue = await amqp_worker.queue_main(amqp_channel)
-    delayed_queue = await amqp_worker.queue_delayed(amqp_channel)
     errored_queue = await amqp_worker.queue_errored(amqp_channel)
     assert main_queue['consumer_count'] == 1
-    assert delayed_queue['message_count'] == 0
     assert errored_queue['message_count'] == 1
 
     aiotask_context.set('request', None)
