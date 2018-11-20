@@ -27,7 +27,6 @@ import time
 import traceback
 import yarl
 import asyncio
-from datetime import datetime
 
 
 logger = logging.getLogger('guillotina_amqp.job')
