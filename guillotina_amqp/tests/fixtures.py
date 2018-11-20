@@ -12,7 +12,7 @@ base_amqp_settings = {
     "login": "guest",
     "password": "guest",
     "vhost": "/",
-    "heartbeat": 800,
+    "heartbeat": 120,  # 2 minutes
     "exchange": "",
     "queue": "guillotina",
     "persistent_manager": "memory",
@@ -95,7 +95,7 @@ def rabbitmq_container(rabbitmq):
         "login": "guest",
         "password": "guest",
         "vhost": "/",
-        "heartbeat": 800,
+        "heartbeat": 120,  # 2 minutes
         "exchange": "guillotina",
         "queue": "guillotina",
     })

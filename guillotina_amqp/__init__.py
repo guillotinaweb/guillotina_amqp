@@ -13,7 +13,7 @@ app_settings = {
         "login": "guest",
         "password": "guest",
         "vhost": "/",
-        "heartbeat": 800,
+        "heartbeat": 120,  # 2 minutes
         "exchange": "guillotina",
         "queue": "guillotina",
         "persistent_manager": "memory"

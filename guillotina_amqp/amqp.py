@@ -14,10 +14,10 @@ async def remove_connection(name='default'):
     Purpose here is to close out a bad connection.
     Next time get_connection is called, a new connection will be established
     '''
-    ampq_settings = app_settings['amqp']
-    if 'connections' not in ampq_settings:
-        ampq_settings['connections'] = {}
-    connections = ampq_settings['connections']
+    amqp_settings = app_settings['amqp']
+    if 'connections' not in amqp_settings:
+        amqp_settings['connections'] = {}
+    connections = amqp_settings['connections']
     if name not in connections:
         return
 
@@ -62,10 +62,10 @@ async def heartbeat():
 
 
 async def get_connection(name='default'):
-    ampq_settings = app_settings['amqp']
-    if 'connections' not in ampq_settings:
-        ampq_settings['connections'] = {}
-    connections = ampq_settings['connections']
+    amqp_settings = app_settings['amqp']
+    if 'connections' not in amqp_settings:
+        amqp_settings['connections'] = {}
+    connections = amqp_settings['connections']
     if name in connections:
         connection = connections[name]
         return connection['channel'], connection['transport'], connection['protocol']
@@ -76,25 +76,25 @@ async def get_connection(name='default'):
         'transport': transport
     }
     asyncio.ensure_future(handle_connection_closed(name, protocol))
-    if ampq_settings.get('heartbeat_task') is None:
+    if amqp_settings.get('heartbeat_task') is None:
         logger.info('Starting amqp heartbeat')
-        ampq_settings.update({
+        amqp_settings.update({
             'heartbeat_task': asyncio.ensure_future(heartbeat())
         })
     return channel, transport, protocol
 
 
 async def connect(**kwargs):
-    ampq_settings = app_settings['amqp']
+    amqp_settings = app_settings['amqp']
     conn_factory = resolve_dotted_name(
-        ampq_settings.get('connection_factory', aioamqp.connect))
+        amqp_settings.get('connection_factory', aioamqp.connect))
     transport, protocol = await conn_factory(
-        ampq_settings['host'],
-        ampq_settings['port'],
-        ampq_settings['login'],
-        ampq_settings['password'],
-        ampq_settings['vhost'],
-        heartbeat=800,
+        amqp_settings['host'],
+        amqp_settings['port'],
+        amqp_settings['login'],
+        amqp_settings['password'],
+        amqp_settings['vhost'],
+        heartbeat=amqp_settings['heartbeat'],
         **kwargs
     )
     channel = await protocol.channel()
