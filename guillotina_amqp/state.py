@@ -343,6 +343,12 @@ class TaskState:
 
     async def cancel(self):
         util = get_state_manager()
+        if await util.is_canceled(self.task_id):
+            # Already canceled
+            return True
+        if not await util.exists(self.task_id):
+            raise TaskNotFoundException
+        # Cancel it
         return await util.cancel(self.task_id)
 
     async def acquire(self, ttl=DEFAULT_LOCK_TTL_S):

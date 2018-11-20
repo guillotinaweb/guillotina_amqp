@@ -126,7 +126,6 @@ class TimeoutLock(object):
     def __init__(self, worker_id):
         self._lock = threading.Lock()
         self.worker_id = worker_id
-        self._thread = None
 
     def acquire(self, ttl=-1, blocking=True):
         """If ttl is -1, lock will be acquired forever (or until someone
