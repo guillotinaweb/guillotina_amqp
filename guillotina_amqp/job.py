@@ -1,5 +1,4 @@
 from aiohttp import test_utils
-from guillotina.exceptions import ConflictError
 from aiohttp.helpers import noop
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
@@ -23,10 +22,9 @@ from zope.interface import alsoProvides
 
 import aiotask_context
 import logging
-import time
-import traceback
 import yarl
 import asyncio
+from datetime import datetime
 
 
 logger = logging.getLogger('guillotina_amqp.job')
@@ -199,65 +197,37 @@ class Job:
         #
 
         try:
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'running',
-                'updated': time.time()
-            })
-            request = await self.create_request()
+            async for status in func(*self.data['args'], **self.data['kwargs']):
+                if not isinstance(status, tuple) or len(status) != 2:
+                    logger.debug(f'Job: invalid generator event: {status}')
+                    continue
 
-            req_data = self.data['req_data']
-            if 'user' in req_data:
-                login_user(request, req_data['user'])
+                evtype, content = status
 
-            func = resolve_dotted_name(self.data['func'])
-            if ITaskDefinition.providedBy(func):
-                func = func.func
-            if hasattr(func, '__real_func__'):
-                # from decorators
-                func = func.__real_func__
+                if evtype == 1:  # Task message, record it in the task's evlog
+                    date_now = datetime.now().isoformat(' ', 'milliseconds')
+                    logger.debug(f'Job {task_id}: function data {self.data}, got msg {content}')
+                    state = await self.state_manager.get(task_id)
+                    evlog = state.setdefault('eventlog', {})
+                    evlog[date_now] = content
+                    await self.state_manager.update(task_id, state)
+                elif evtype == 0:  # Task value yielded
+                    # Accumulate all the generator results in a list
+                    logger.debug(f'Job {task_id}: function data {self.data}, got result {content}')
+                    if result is None:
+                        result = [content]
+                    elif isinstance(result, list):
+                        result.append(content)
+                else:
+                    logger.debug(f'Job {task_id}: invalid generator event code {evtype}')
+                    continue
+        except TypeError:
+            # Regular function
             result = await func(*self.data['args'], **self.data['kwargs'])
-            await commit(request)
-            committed = True
-            await self.channel.basic_client_ack(
-                delivery_tag=self.envelope.delivery_tag)
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'finished',
-                'updated': time.time(),
-                'result': result
-            })
-            logger.info(f'Finished task: {task_id}: {dotted_name}')
-        except ConflictError:
-            logger.warning(f'Conflict error detected, retrying')
-            data = await self.state_manager.get(self.data['task_id'])
-            retries = data.get('retries', 0)
-            if retries <= 3:
-                await self.channel.basic_client_nack(
-                    delivery_tag=self.envelope.delivery_tag,
-                    multiple=False, requeue=True)
-                await self.state_manager.update(self.data['task_id'], {
-                    'status': 'conflict',
-                    'updated': time.time(),
-                    'retries': retries + 1
-                })
-            else:
-                await self.channel.basic_client_nack(
-                    delivery_tag=self.envelope.delivery_tag,
-                    multiple=False, requeue=False)
-                await self.state_manager.update(self.data['task_id'], {
-                    'status': 'error',
-                    'updated': time.time(),
-                    'error': 'exhausted retry attempts'
-                })
-        except Exception:
-            logger.warning(f'Error executing task: {self.data}', exc_info=True)
-            await self.channel.basic_client_nack(
-                delivery_tag=self.envelope.delivery_tag,
-                multiple=False, requeue=False)
-            await self.state_manager.update(self.data['task_id'], {
-                'status': 'errored',
-                'updated': time.time(),
-                'error': traceback.format_exc()
-            })
-        finally:
-            if request is not None and not committed:
-                await abort(request)
+
+        await commit(request)
+        committed = True
+
+        if request is not None and not committed:
+            await abort(request)
+        return result

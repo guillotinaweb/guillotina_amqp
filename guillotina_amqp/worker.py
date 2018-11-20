@@ -1,9 +1,3 @@
-"""
-NOTE:
- - Task: used to refer to an asyncio task
- - Job: used to refer a specification of some work that has to be done
-"""
-
 from guillotina import app_settings
 from guillotina_amqp import amqp
 from guillotina_amqp.job import Job
@@ -81,7 +75,7 @@ class Worker:
         dotted_name = data['func']
         await self.state_manager.update(task_id, {
             'status': 'scheduled',
-            'updated': time.time()
+            'eventlog': {},
         })
         logger.info(f'Received task: {task_id}: {dotted_name}')
 

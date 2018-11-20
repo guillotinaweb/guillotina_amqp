@@ -1,5 +1,7 @@
-1.0.9 (unreleased)
-------------------
+2.0.0
+-----
+
+Major improvements:
 
  - Added task retrial using delay queue
  - Tasks are only ACKed if successful, otherwise are sent to delay queue
