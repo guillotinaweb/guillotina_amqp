@@ -16,7 +16,7 @@ app_settings = {
         "heartbeat": 800,
         "exchange": "guillotina",
         "queue": "guillotina",
-        "persistent_manager": "dummy"
+        "persistent_manager": "memory"
     },
     'commands': {
         "amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"

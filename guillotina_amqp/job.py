@@ -26,12 +26,17 @@ import logging
 import time
 import traceback
 import yarl
+import asyncio
+from datetime import datetime
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.job')
 
 
 def login_user(request, user_data):
+    """Logs user in to guillotina so the job has the correct access
+
+    """
     request.security = Interaction(request)
     participation = GuillotinaParticipation(request)
     participation.interaction = None
@@ -62,6 +67,10 @@ class EmptyPayload:
 
 
 class Job:
+    """Job objects are responsible for running the actual functions that
+    were configured for. They ack/nack rabbitmq when job is finished, and publish
+
+    """
 
     def __init__(self, base_request, data, channel, envelope):
         if base_request is None:
@@ -71,6 +80,7 @@ class Job:
         self.data = data
         self.channel = channel
         self.envelope = envelope
+        self.loop = asyncio.get_event_loop()
 
         self.task = None
         self._state_manager = None
@@ -146,10 +156,48 @@ class Job:
 
     async def __call__(self):
         request = None
+        result = None
         committed = False
         task_id = self.data['task_id']
         dotted_name = self.data['func']
         logger.info(f'Running task: {task_id}: {dotted_name}')
+
+        # Update status
+        await self.state_manager.update(self.data['task_id'], {
+            'status': 'running'
+        })
+        # Clone request for task
+        request = await self.create_request()
+
+        req_data = self.data['req_data']
+        if 'user' in req_data:
+            login_user(request, req_data['user'])
+
+        # Parse the function to run
+        func = resolve_dotted_name(self.data['func'])
+        if ITaskDefinition.providedBy(func):
+            func = func.func
+        if hasattr(func, '__real_func__'):
+            # from decorators
+            func = func.__real_func__
+
+        #
+        # Run the task coroutine
+        #
+        # Your coroutine can be a regular coroutine or an asynchronous
+        # generator. If you use an asynchronous generator, your generator
+        # should yield tuples of the form:
+        #
+        # (type, content)
+        #
+        # There are 2 different event types:
+        #
+        # type = 0: task value yield
+        # type = 1: task message, will be logged to the state manager
+        #
+        # All the values yielded by the task are returned as a list to the
+        # caller
+        #
 
         try:
             await self.state_manager.update(self.data['task_id'], {

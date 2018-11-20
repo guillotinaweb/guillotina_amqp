@@ -4,19 +4,73 @@ from zope.interface import Interface
 
 class IStateManagerUtility(Interface):
     async def update(task_id, data):
-        pass
+        """Updates data related to task id into state manager
+        """
+        raise NotImplementedError()
 
     async def get(self, task_id):
-        pass
+        """Gets whatever was stored in state manager for task_id
+        """
+        raise NotImplementedError()
+
+    async def exists(self, task_id):
+        """Returns whether a task id exists in the state manager
+        """
+        raise NotImplementedError()
 
     async def list(self):
-        if False: yield
+        """
+        Yields items from the list of stored items
+        """
+        raise NotImplementedError()
 
-    async def lock(self, task_id, timeout=None, ttl=None):
-        pass
+    async def is_mine(self, task_id):
+        """Returns whether the worker has a lock on a given task_idq
+        """
+        raise NotImplementedError()
 
-    async def unlock(self, task_id):
-        pass
+    async def cancel(self, task_id):
+        """
+        Sets task_id to the canceled set of tasks
+        """
+        raise NotImplementedError()
+
+    async def acquire(self, task_id, ttl):
+        """
+        Get a lock on a certain task, by id.
+        """
+        raise NotImplementedError()
+
+    async def release(self, task_id):
+        """
+        Release the lock for the specified task
+        """
+        raise NotImplementedError()
+
+    async def refresh_lock(self, task_id, ttl):
+        """
+        Update lock TTL
+        """
+        raise NotImplementedError()
+
+    async def cancelation_list(self):
+        """
+        Yields items from the canceled set
+        """
+        raise NotImplementedError()
+
+    async def clean_canceled(self, task_id):
+        """
+        Removes a task from the canceled set
+        """
+        raise NotImplementedError()
+
+    async def is_canceled(self, task_id):
+        """
+        Whether a task id has been cancelled
+        """
+        raise NotImplementedError()
+
 
 class ITaskDefinition(Interface):
     func = Attribute('actual function to run')

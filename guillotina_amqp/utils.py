@@ -16,12 +16,27 @@ import json
 import logging
 import time
 import uuid
+import threading
+import asyncio
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = logging.getLogger('guillotina_amqp.utils')
+
+
+async def cancel_task(task_id):
+    """It cancels a task by id. Returns wether it could be cancelled.
+
+    """
+    task = TaskState(task_id)
+    success = await task.cancel()
+    return success
 
 
 async def add_task(func, *args, _request=None, _retries=3, **kwargs):
+    """Given a function and its arguments, it adds it as a task to be ran
+    by workers.
+    """
+    # Get the request and prepare request data
     if _request is None:
         _request = get_current_request()
 
@@ -50,6 +65,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
 
     retries = 0
     while True:
+        # Get the rabbitmq connection
         channel, transport, protocol = await amqp.get_connection()
         try:
             task_id = str(uuid.uuid4())
@@ -65,6 +81,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
                 'req_data': req_data,
                 'task_id': task_id
             })
+            # Publish task data on rabbitmq
             await channel.publish(
                 data,
                 exchange_name=app_settings['amqp']['exchange'],
@@ -73,6 +90,7 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
                     'delivery_mode': 2
                 }
             )
+            # Update tasks's global state
             state_manager = get_state_manager()
             await state_manager.update(task_id, {
                 'status': 'scheduled',
@@ -101,3 +119,42 @@ async def add_object_task(callable=None, ob=None, *args,
     return await add_task(
         _run_object_task, get_dotted_name(callable), get_content_path(ob), *args,
         _request=_request, _retries=_retries, **kwargs)
+
+
+class TimeoutLock(object):
+    """Implements a Lock that can be acquired for """
+    def __init__(self, worker_id):
+        self._lock = threading.Lock()
+        self.worker_id = worker_id
+        self._thread = None
+
+    def acquire(self, ttl=-1, blocking=True):
+        """If ttl is -1, lock will be acquired forever (or until someone
+        manually releases it).
+
+        Otherwise, it schedules an automatic release after the
+        specified ttl.
+        """
+        acquired = self._lock.acquire(blocking)
+        if not acquired:
+            return False
+
+        if ttl >= 0:
+            asyncio.ensure_future(self._release_after(ttl))
+        return True
+
+    async def _release_after(self, some_time):
+        await asyncio.sleep(some_time)
+        self.release()
+
+    def release(self):
+        if self.locked():
+            self._lock.release()
+
+    def locked(self):
+        return self._lock.locked()
+
+    def refresh_lock(self, ttl):
+        # Overwrite old lock and acquire with new timeout
+        self._lock = threading.Lock()
+        return self.acquire(ttl)
