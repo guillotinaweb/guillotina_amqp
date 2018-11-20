@@ -1,27 +1,54 @@
-from guillotina import app_settings
-from guillotina_amqp.decorators import task
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.utils import add_task
+from guillotina_amqp.utils import cancel_task
+from guillotina_amqp.tests.utils import _test_func
+from guillotina_amqp.tests.utils import _test_long_func
+from guillotina_amqp.tests.utils import _test_failing_func
+from guillotina_amqp.tests.utils import _test_asyncgen
+from guillotina_amqp.tests.utils import _test_asyncgen_invalid
+from guillotina_amqp.tests.utils import _test_asyncgen_doubley
+from guillotina_amqp.tests.utils import _decorator_test_func
 
 import aiotask_context
 import asyncio
 import json
 
 
-async def _test_func(one, two, one_keyword=None):
-    return one + two
-
-
-@task
-async def _decorator_test_func(one, two):
-    return one + two
-
-
-async def test_add_task(dummy_request, amqp_worker):
+async def test_add_task(dummy_request, amqp_worker, amqp_channel,
+                        configured_state_manager):
     aiotask_context.set('request', dummy_request)
-    await add_task(_test_func, 1, 2)
-    channel = app_settings['amqp']['connections']['default']['channel']
-    assert len(channel.protocol.queues['guillotina']) == 1
+    ts = await add_task(_test_func, 1, 2)
+    await ts.join(0.02)
+
+    state = await ts.get_state()
+    assert state['status'] == 'finished'
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    assert main_queue['message_count'] == 0
+
+    aiotask_context.set('request', None)
+
+
+async def test_generator_tasks(dummy_request, amqp_worker, amqp_channel,
+                               configured_state_manager):
+    aiotask_context.set('request', dummy_request)
+    ts = await add_task(_test_asyncgen, 1, 2)
+    await ts.join(0.02)
+
+    state = await ts.get_state()
+    assert state['status'] == 'finished'
+    assert 'Yellow' in state['eventlog'].values()
+    assert await ts.get_result() == [3]
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    assert main_queue['message_count'] == 0
+
+    ts_invalid = await add_task(_test_asyncgen_invalid)
+    await ts_invalid.join(0.02)
+    assert await ts_invalid.get_result() is None
+
+    ts_doubley = await add_task(_test_asyncgen_doubley, 128, 1024, 2048)
+    await ts_doubley.join(0.02)
+    assert await ts_doubley.get_result() == [128, 1024, 2048]
+
     aiotask_context.set('request', None)
 
 
@@ -62,6 +89,26 @@ async def test_task_commits_data_from_service(amqp_worker, container_requester):
         assert resp['title'] == 'Foobar written'
 
 
+async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_state_manager):
+    aiotask_context.set('request', dummy_request)
+    # Add long running task
+    ts = await _test_long_func(120)
+    # Wait a bit and cancel
+    await asyncio.sleep(1)
+    success = await cancel_task(ts.task_id)
+    assert success
+    # Wait until worker sees task is cancelled and cancels the
+    # asycio task
+    await ts.join(0.2)
+
+    # Check that the it was indeed cancelled
+    state = await ts.get_state()
+    assert state['status'] == 'canceled'
+    await asyncio.sleep(0.1)  # prevent possible race condition here
+    assert amqp_worker.total_run == 1
+    aiotask_context.set('request', None)
+
+
 async def test_decorator_task(dummy_request, amqp_worker):
     aiotask_context.set('request', dummy_request)
     state = await _decorator_test_func(1, 2)
@@ -71,4 +118,66 @@ async def test_decorator_task(dummy_request, amqp_worker):
     assert amqp_worker.total_run == 1
     assert await state.get_status() == 'finished'
     assert await state.get_result() == 3
+    aiotask_context.set('request', None)
+
+
+async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
+                                                                amqp_worker,
+                                                                amqp_channel):
+    aiotask_context.set('request', dummy_request)
+    ts = await _test_failing_func()
+    # wait for it to finish
+    await ts.join(0.1)
+    assert amqp_worker.total_run == 1
+    await amqp_worker.join()
+    state = await ts.get_state()
+    assert state['status'] == 'errored'
+    assert state['job_retries'] == 1
+
+    task_id = state['job_data']['task_id']
+
+    # Check that the job has been moved to the delay queue and
+    # verify the task id
+
+    delayed = await amqp_worker.queue_delayed(amqp_channel)
+    assert delayed['message_count'] == 1
+
+    async def callback(channel, body, envelope, properties):
+        decoded = json.loads(body)
+        assert decoded['task_id'] == task_id
+
+    await amqp_channel.basic_consume(callback, queue_name=delayed['queue'])
+    aiotask_context.set('request', None)
+
+
+async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
+                                                          amqp_worker,
+                                                          amqp_channel):
+    aiotask_context.set('request', dummy_request)
+
+    # Add failing function and wait for it to finish
+    ts = await _test_failing_func()
+
+    # Fake job retries to max
+    max_retries = amqp_worker.max_task_retries
+    await amqp_worker.state_manager.update(ts.task_id, {
+        'job_retries': max_retries
+    })
+    # Wait for it to finish
+    await ts.join(0.1)
+    # Check that worker ran only one
+    assert amqp_worker.total_run == 1
+    await amqp_worker.join()
+
+    # Check that it retries up to max
+    state = await ts.get_state()
+    retried = state['job_retries']
+    assert retried == max_retries
+
+    # Check that it went to error queue
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    errored_queue = await amqp_worker.queue_errored(amqp_channel)
+    assert main_queue['consumer_count'] == 1
+    assert errored_queue['message_count'] == 1
+
     aiotask_context.set('request', None)

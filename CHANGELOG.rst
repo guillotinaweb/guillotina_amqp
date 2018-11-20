@@ -1,7 +1,14 @@
-1.0.9 (unreleased)
-------------------
+2.0.0
+-----
 
-- Nothing changed yet.
+Major improvements:
+
+ - Added task retrial using delay queue
+ - Tasks are only ACKed if successful, otherwise are sent to delay queue
+ - Allow task cancelation
+ - Improved API
+ - Upgraded to guillotina 4
+ - Added plenty of tests for worker, amqp and state manager
 
 
 1.0.8 (2018-10-09)

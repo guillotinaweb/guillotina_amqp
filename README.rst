@@ -1,7 +1,30 @@
 guillotina_amqp Docs
 --------------------
 
-Integrates aioamqp into guillotina.
+Integrates aioamqp into guillotina, providing an execution framework
+for asyncio tasks:
+
+  - Guillotina command to start a worker: `amqp-worker`
+
+  - Workers consume tasks from rabbit-mq through the aioamqp integration
+
+  - Redis state manager implementation to keep a global view of
+    running tasks
+
+  - Utilities and endpoints for adding new tasks and for task
+    cancellation
+
+Its distributed design - the absence of a central worker manager -
+makes it more robust. Task cancelation is signaled over the state
+manager, and workers will be responsible for stopping canceled tasks.
+
+A watchdog on the asyncio loop can be launched with the
+`auto-kill-timeout` command argument, which will kill the worker if
+one of its tasks has captured the loop for too long.
+
+When a task fails, the worker will send it to the delay queue, which
+has been configured to re-queue tasks to the main queue after a certain
+TTL. Failed tasks are retried a limited amount of times.
 
 
 Configuration
@@ -12,13 +35,15 @@ Example docs::
 
     {
         "amqp": {
-	       "host": "localhost",
-	       "port": 5673,
-           "login": "guest",
-           "password": "guest",
-           "vhost": "/",
-           "heartbeat": 800
-	    }
+            "host": "localhost",
+            "port": 5673,
+            "login": "guest",
+            "password": "guest",
+            "vhost": "/",
+            "heartbeat": 800,
+            "queue": "guillotina",  # Main consuming queue for workers
+            "persistent_manager": "redis"
+        }
     }
 
 
