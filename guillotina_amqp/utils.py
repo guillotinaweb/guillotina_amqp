@@ -16,7 +16,6 @@ import json
 import logging
 import time
 import uuid
-import threading
 import asyncio
 
 
@@ -124,17 +123,21 @@ async def add_object_task(callable=None, ob=None, *args,
 class TimeoutLock(object):
     """Implements a Lock that can be acquired for """
     def __init__(self, worker_id):
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
         self.worker_id = worker_id
 
-    def acquire(self, ttl=-1, blocking=True):
+    async def acquire(self, ttl=-1):
         """If ttl is -1, lock will be acquired forever (or until someone
         manually releases it).
 
         Otherwise, it schedules an automatic release after the
         specified ttl.
         """
-        acquired = self._lock.acquire(blocking)
+        if self.locked():
+            # Already acquired
+            raise False
+
+        acquired = await self._lock.acquire()
         if not acquired:
             return False
 
@@ -153,7 +156,7 @@ class TimeoutLock(object):
     def locked(self):
         return self._lock.locked()
 
-    def refresh_lock(self, ttl):
+    async def refresh_lock(self, ttl):
         # Overwrite old lock and acquire with new timeout
-        self._lock = threading.Lock()
-        return self.acquire(ttl)
+        self._lock = asyncio.Lock()
+        return await self.acquire(ttl)

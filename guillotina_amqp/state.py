@@ -67,7 +67,7 @@ class MemoryStateManager:
         # Set new lock
         from guillotina_amqp.utils import TimeoutLock
         lock = TimeoutLock(self.worker_id)
-        lock.acquire(ttl=ttl)
+        await lock.acquire(ttl=ttl)
         self._locks[task_id] = lock
 
     async def is_mine(self, task_id):
@@ -101,7 +101,7 @@ class MemoryStateManager:
             raise TaskAccessUnauthorized(task_id)
 
         # Refresh
-        return self._locks[task_id].refresh_lock(ttl)
+        return await self._locks[task_id].refresh_lock(ttl)
 
     async def cancel(self, task_id):
         self._canceled.update({task_id})
