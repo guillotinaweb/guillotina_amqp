@@ -148,11 +148,6 @@ async def handle_beacon(channel, body, envelope, properties):
     global worker_beacon_uuid
     global beacon_delay_queue_name
 
-    data = json.loads(body)
-    if data.get('worker_beacon_uuid') != worker_beacon_uuid:
-        # Ignore beacon
-        return
-
     if autokill_handler:
         # ACK beacon queue
         await channel.basic_client_ack(
