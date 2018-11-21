@@ -40,7 +40,7 @@ class Worker:
         self._state_manager = None
 
         # RabbitMQ queue names defined here
-        self.EXCHANGE = app_settings['amqp']['exchange']
+        self.MAIN_EXCHANGE = app_settings['amqp']['exchange']
         self.QUEUE_MAIN = app_settings['amqp']['queue']
         self.QUEUE_ERRORED = app_settings['amqp']['queue'] + '-error'
         self.QUEUE_DELAYED = app_settings['amqp']['queue'] + '-delay'
@@ -157,7 +157,7 @@ class Worker:
         # Publish task data to delay queue
         await channel.publish(
             json.dumps(task._job.data),
-            exchange_name=self.EXCHANGE,
+            exchange_name=self.MAIN_EXCHANGE,
             routing_key=self.QUEUE_DELAYED,
             properties={
                 'delivery_mode': 2
@@ -214,6 +214,31 @@ class Worker:
             # If task ran successfully, ACK main queue and finish
             return await self._handle_successful(task)
 
+    async def setup_beacon_queues(self):
+        self.BEACON_EXCHANGE = 'beacon'
+        self.BEACON_MAIN = 'beacon-main'
+        self.BEACON_DELAYED = 'beacon-delayed'
+
+        # Declare main fanout exchange
+        await channel.exchange_declare(
+            exchange_name=self.BEACON_EXCHANGE,
+            type_name='fanout',
+            durable=True)
+
+        # Declare queues
+        await self.queue_beacon_main(passive=False)
+        await self.queue_beacon_delayed(passive=False)
+
+        # Configure main beacon message handler
+        await channel.basic_consume(
+            self.handle_beacon,
+            queue_name=self.BEACON_MAIN,
+        )
+
+    async def handle_beacon(self, channel, body, envelope, properties):
+        import pdb; pdb.set_trace()
+        pass
+
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and
         configures the different queues.
@@ -223,41 +248,29 @@ class Worker:
 
         # Declare main exchange
         await channel.exchange_declare(
-            exchange_name=self.EXCHANGE,
+            exchange_name=self.MAIN_EXCHANGE,
             type_name='direct',
             durable=True)
 
         # Declare errored queue and bind it
         await self.queue_errored(channel, passive=False)
-        await channel.queue_bind(
-            exchange_name=self.EXCHANGE,
-            queue_name=self.QUEUE_ERRORED,
-            routing_key=self.QUEUE_ERRORED,
-        )
 
         # Declare main queue and bind it
         await self.queue_main(channel, passive=False)
-        await channel.queue_bind(
-            exchange_name=self.EXCHANGE,
-            queue_name=self.QUEUE_MAIN,
-            routing_key=self.QUEUE_MAIN,
-        )
 
         # Declare delayed queue and bind it
         await self.queue_delayed(channel, passive=False)
-        await channel.queue_bind(
-            exchange_name=self.EXCHANGE,
-            queue_name=self.QUEUE_DELAYED,
-            routing_key=self.QUEUE_DELAYED,
-        )
 
         await channel.basic_qos(prefetch_count=4)
 
-        # Configure consume callback
+        # Configure task consume callback
         await channel.basic_consume(
             self.handle_queued_job,
             queue_name=self.QUEUE_MAIN,
         )
+
+        # Declare beacon queues
+        await self.setup_beacon_queues(channel)
 
         # Start task that will update status periodically
         asyncio.ensure_future(self.update_status())
@@ -265,36 +278,109 @@ class Worker:
         logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
 
     async def queue_main(self, channel, passive=True):
-        # Main queue
-        # Automatically move NACK tasks to errored queue
-        return await channel.queue_declare(
+        """Declares the main queue for task messages. NACKed messages are sent
+        to the errored queue.
+
+        If passie is False, will additionally bind the queue to the
+        exchange
+        """
+        channel = await channel.queue_declare(
             queue_name=self.QUEUE_MAIN, durable=True,
             passive=passive,
             arguments={
-                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-exchange': self.MAIN_EXCHANGE,
                 'x-dead-letter-routing-key': self.QUEUE_ERRORED,
             })
+        if not passive:
+            await channel.queue_bind(
+                exchange_name=self.MAIN_EXCHANGE,
+                queue_name=self.QUEUE_MAIN,
+                routing_key=self.QUEUE_MAIN,
+            )
+        return channel
+
+    async def queue_beacon_main(self, channel, passive=True):
+        """Declares the main queue for beacon messages. Returns the queue
+        object. If passive is False, additionally binds the queue to
+        the exchange.
+
+        """
+        queue = await channel.queue_declare(
+            queue_name=self.BEACON_MAIN, durable=True,
+            passive=passive)
+        if not passive:
+            # Bind it
+            await channel.queue_bind(
+                exchange_name=self.BEACON_EXCHANGE,
+                queue_name=self.BEACON_MAIN,
+                routing_key=self.BEACON_MAIN,
+            )
+        return queue
+
+
+    async def queue_beacon_delayed(self, channel, passive=True):
+        """Declares the delayed queue for beacon messages. Returns the queue
+        object. If passive is False, will additionally bind the queue
+        to the exchange.
+
+        After self.TTL_BEACON, the messages will be requeued to the
+        main beacon queue.
+        """
+        queue = await channel.queue_declare(
+            queue_name=self.BEACON_DELAYED, durable=True,
+            passive=passive,
+            arguments={
+                'x-dead-letter-exchange': self.BEACON_EXCHANGE,
+                'x-dead-letter-routing-key': self.BEACON_MAIN
+                'x-message-ttl': self.TTL_BEACON,
+            })
+        if not passive:
+            # Bind it
+            await channel.queue_bind(
+                exchange_name=self.BEACON_EXCHANGE,
+                queue_name=self.BEACON_DELAYED,
+                routing_key=self.BEACON_DELAYED,
+            )
+        return queue
 
     async def queue_delayed(self, channel, passive=True):
-        # Declare delayed queue: set TTL to move taks from delayed
-        # queue to main queue
-        return await channel.queue_declare(
+        """Declares the queue for delayed tasks, which is used for failed
+        tasks retrials. After self.TTL_DELAYED, tasks will be requeued
+        to the main task queue.
+        """
+        queue = await channel.queue_declare(
             queue_name=self.QUEUE_DELAYED, durable=True,
             passive=passive,
             arguments={
-                'x-dead-letter-exchange': self.EXCHANGE,
+                'x-dead-letter-exchange': self.MAIN_EXCHANGE,
                 'x-dead-letter-routing-key': self.QUEUE_MAIN,
                 'x-message-ttl': self.TTL_DELAYED,
             })
+        if not passive:
+            await channel.queue_bind(
+                exchange_name=self.MAIN_EXCHANGE,
+                queue_name=self.QUEUE_DELAYED,
+                routing_key=self.QUEUE_DELAYED,
+            )
+        return queue
 
     async def queue_errored(self, channel, passive=True):
-        # Errored tasks will remain a limited period of time
-        return await channel.queue_declare(
+        """Declares queue for errored tasks. Errored tasks will remain a
+        limited period of time and then they will be lost.
+        """
+        queue = await channel.queue_declare(
             queue_name=self.QUEUE_ERRORED, durable=True,
             passive=passive,
             arguments={
                 'x-message-ttl': self.TTL_ERRORED,
             })
+        if not passive:
+            await channel.queue_bind(
+                exchange_name=self.MAIN_EXCHANGE,
+                queue_name=self.QUEUE_ERRORED,
+                routing_key=self.QUEUE_ERRORED,
+            )
+        return queue
 
     def cancel(self):
         """
