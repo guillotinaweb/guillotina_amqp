@@ -4,9 +4,18 @@ from guillotina.utils import resolve_dotted_name
 import aioamqp
 import asyncio
 import logging
+import uuid
+import os
+import json
 
 
 logger = logging.getLogger('guillotina_amqp')
+
+autokill_handler = None
+worker_beacon_uuid = uuid.uuid4().hex
+beacon_queue_name = f'beacon-{worker_beacon_uuid}'
+beacon_delay_queue_name = f'beacon-delay-{worker_beacon_uuid}'
+beacon_ttl = 30  # 30 seconds
 
 
 async def remove_connection(name='default'):
@@ -84,6 +93,88 @@ async def get_connection(name='default'):
     return channel, transport, protocol
 
 
+async def setup_beacon_queues(channel):
+    global beacon_queue_name
+    global beacon_delay_queue_name
+
+    # Declare beacon exchange
+    await channel.exchange_declare(
+        exchange_name='beacon',
+        type_name='direct',
+    )
+
+    # Declare and bind the main beacon temporary queue
+    await channel.queue_declare(
+        queue_name=beacon_queue_name,
+        exclusive=True,  # This deletes the queue if connection is lost
+    )
+    await channel.queue_bind(
+        exchange_name='beacon',
+        queue_name=beacon_queue_name,
+        routing_key=beacon_queue_name,
+    )
+
+    # Declare and bind delay beacon temporary queue
+    await channel.queue_declare(
+        queue_name=beacon_delay_queue_name,
+        exclusive=True,  # This deletes the queue if connection is lost
+        arguments={
+            'x-dead-letter-exchange': 'beacon',
+            'x-dead-letter-routing-key': beacon_queue_name,
+            'x-message-ttl': 30,  # 30 seconds
+        })
+    await channel.queue_bind(
+        exchange_name='beacon',
+        queue_name=beacon_delay_queue_name,
+        routing_key=beacon_delay_queue_name,
+    )
+
+    # Configure main beacon message handler
+    await channel.basic_consume(
+        handle_beacon,
+        queue_name=beacon_queue_name,
+    )
+
+
+async def autokill():
+    global beacon_ttl
+    await asyncio.sleep(beacon_ttl * 3)
+    logger.error(f'Exiting worker because of no beacon activity')
+    os._exit(1)
+
+
+async def handle_beacon(channel, body, envelope, properties):
+    global autokill_handler
+    global worker_beacon_uuid
+    global beacon_delay_queue_name
+
+    data = json.loads(body)
+    if data.get('worker_beacon_uuid') != worker_beacon_uuid:
+        # Ignore beacon
+        return
+
+    if autokill_handler:
+        # ACK beacon queue
+        await channel.basic_client_ack(
+            delivery_tag=envelope.delivery_tag,
+        )
+        # Cancel previous autokill
+        autokill_handler.cancel()
+
+    # Re-schedule autokill_handler
+    autokill_handler = asyncio.ensure_future(autokill())
+
+    # Publish to beacon delay queue
+    await channel.publish(
+        json.dumps({'worker_beacon_uuid': worker_beacon_uuid}),
+        exchange_name='beacon',
+        routing_key=beacon_delay_queue_name,
+        properties={
+            'delivery_mode': 2,
+        }
+    )
+
+
 async def connect(**kwargs):
     amqp_settings = app_settings['amqp']
     conn_factory = resolve_dotted_name(
@@ -98,5 +189,8 @@ async def connect(**kwargs):
         **kwargs
     )
     channel = await protocol.channel()
+
+    # Setup beacon liveness queues
+    await setup_beacon_queues(channel)
 
     return channel, transport, protocol

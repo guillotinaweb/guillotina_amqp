@@ -214,32 +214,6 @@ class Worker:
             # If task ran successfully, ACK main queue and finish
             return await self._handle_successful(task)
 
-    async def setup_beacon_queues(self, channel):
-        self.BEACON_EXCHANGE = 'beacon'
-        self.BEACON_MAIN = 'beacon-main'
-        self.BEACON_DELAYED = 'beacon-delayed'
-        self.TTL_BEACON = 60 * 2  # 2 minutes
-
-        # Declare main fanout exchange
-        await channel.exchange_declare(
-            exchange_name=self.BEACON_EXCHANGE,
-            type_name='fanout',
-            durable=True)
-
-        # Declare queues
-        await self.queue_beacon_main(channel, passive=False)
-        await self.queue_beacon_delayed(channel, passive=False)
-
-        # Configure main beacon message handler
-        await channel.basic_consume(
-            self.handle_beacon,
-            queue_name=self.BEACON_MAIN,
-        )
-
-    async def handle_beacon(self, channel, body, envelope, properties):
-        # TODO
-        pass
-
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and
         configures the different queues.
@@ -270,9 +244,6 @@ class Worker:
             queue_name=self.QUEUE_MAIN,
         )
 
-        # Declare beacon queues
-        await self.setup_beacon_queues(channel)
-
         # Start task that will update status periodically
         asyncio.ensure_future(self.update_status())
 
@@ -297,49 +268,6 @@ class Worker:
                 exchange_name=self.MAIN_EXCHANGE,
                 queue_name=self.QUEUE_MAIN,
                 routing_key=self.QUEUE_MAIN,
-            )
-        return resp
-
-    async def queue_beacon_main(self, channel, passive=True):
-        """Declares the main queue for beacon messages. Returns the queue
-        object. If passive is False, additionally binds the queue to
-        the exchange.
-
-        """
-        resp = await channel.queue_declare(
-            queue_name=self.BEACON_MAIN, durable=True,
-            passive=passive)
-        if not passive:
-            # Bind it
-            await channel.queue_bind(
-                exchange_name=self.BEACON_EXCHANGE,
-                queue_name=self.BEACON_MAIN,
-                routing_key=self.BEACON_MAIN,
-            )
-        return resp
-
-    async def queue_beacon_delayed(self, channel, passive=True):
-        """Declares the delayed queue for beacon messages. Returns the queue
-        object. If passive is False, will additionally bind the queue
-        to the exchange.
-
-        After self.TTL_BEACON, the messages will be requeued to the
-        main beacon queue.
-        """
-        resp = await channel.queue_declare(
-            queue_name=self.BEACON_DELAYED, durable=True,
-            passive=passive,
-            arguments={
-                'x-dead-letter-exchange': self.BEACON_EXCHANGE,
-                'x-dead-letter-routing-key': self.BEACON_MAIN,
-                'x-message-ttl': self.TTL_BEACON,
-            })
-        if not passive:
-            # Bind it
-            await channel.queue_bind(
-                exchange_name=self.BEACON_EXCHANGE,
-                queue_name=self.BEACON_DELAYED,
-                routing_key=self.BEACON_DELAYED,
             )
         return resp
 
