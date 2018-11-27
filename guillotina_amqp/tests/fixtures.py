@@ -34,6 +34,8 @@ testing.configure_with(base_settings_configurator)
 
 @pytest.fixture('function')
 def amqp_worker(loop, rabbitmq_container):
+    amqp.logger.setLevel(10)
+
     # Create worker
     _worker = Worker(loop=loop)
     _worker.update_status_interval = 2
@@ -98,4 +100,5 @@ def rabbitmq_container(rabbitmq):
         "heartbeat": 120,  # 2 minutes
         "exchange": "guillotina",
         "queue": "guillotina",
+        "beaconttl": 2
     })

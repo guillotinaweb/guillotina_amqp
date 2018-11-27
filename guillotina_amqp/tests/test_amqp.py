@@ -181,3 +181,27 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
     assert errored_queue['message_count'] == 1
 
     aiotask_context.set('request', None)
+
+
+async def test_worker_beacons_process_exit(dummy_request,
+                                           amqp_worker,
+                                           amqp_channel):
+    from guillotina_amqp.amqp import autokill_event
+    global autokill_event
+
+    aiotask_context.set('request', dummy_request)
+
+    # Give the worker some job and sleep
+    ts = await _test_long_func(20)
+    await cancel_task(ts.task_id)
+    await asyncio.sleep(4)
+
+    # Stop the worker, which will disconnect from AMQP, preventing beacons from
+    # being sent.
+    await amqp_worker.stop()
+
+    # Wait to see that the autokill event was set, meaning that we received
+    # no beacons as expected and that the process will exit
+    await autokill_event.wait()
+
+    aiotask_context.set('request', None)
