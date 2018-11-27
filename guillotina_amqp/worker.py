@@ -214,6 +214,10 @@ class Worker:
             # If task ran successfully, ACK main queue and finish
             return await self._handle_successful(task)
 
+    async def stop(self):
+        self.cancel()
+        await amqp.remove_connection()
+
     async def start(self):
         """Called on worker startup. Connects to the rabbitmq. Declares and
         configures the different queues.

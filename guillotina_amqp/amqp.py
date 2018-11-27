@@ -8,10 +8,13 @@ import uuid
 import os
 import json
 
+import aioamqp.exceptions
+
 
 logger = logging.getLogger('guillotina_amqp')
 
 autokill_handler = None
+autokill_event = None
 worker_beacon_uuid = uuid.uuid4().hex
 beacon_queue_name = f'beacon-{worker_beacon_uuid}'
 beacon_delay_queue_name = f'beacon-delay-{worker_beacon_uuid}'
@@ -93,9 +96,15 @@ async def get_connection(name='default'):
     return channel, transport, protocol
 
 
-async def setup_beacon_queues(channel):
+async def setup_beacon_queues(channel, ttl=beacon_ttl):
     global beacon_queue_name
     global beacon_delay_queue_name
+    global autokill_handler
+    global autokill_event
+
+    autokill_event = asyncio.Event()
+
+    logger.debug(f'Setting up beacon queues with TTL {ttl}')
 
     # Declare beacon exchange
     await channel.exchange_declare(
@@ -121,8 +130,9 @@ async def setup_beacon_queues(channel):
         arguments={
             'x-dead-letter-exchange': 'beacon',
             'x-dead-letter-routing-key': beacon_queue_name,
-            'x-message-ttl': 30,  # 30 seconds
+            'x-message-ttl': ttl,  # 30 seconds
         })
+
     await channel.queue_bind(
         exchange_name='beacon',
         queue_name=beacon_delay_queue_name,
@@ -135,18 +145,73 @@ async def setup_beacon_queues(channel):
         queue_name=beacon_queue_name,
     )
 
+    # Start the autokill task
+    autokill_handler = asyncio.ensure_future(autokill(ttl))
 
-async def autokill():
-    global beacon_ttl
-    await asyncio.sleep(beacon_ttl * 3)
+    # Send the first beacon
+    asyncio.ensure_future(publish_beacon_to_delay_queue(channel, ttl))
+
+
+async def autokill(ttl):
+    """
+    AutoKill task, sleeps as long as beacons are received, and exits the
+    process otherwise
+
+    This task captures cancel events (cancel is called from the beacon handler)
+    and keeps sleeping in that case, otherwise exits the process because that
+    means we didn't receive any beacons (AMQP connection is stalled)
+    """
+    loop = asyncio.get_event_loop()
+
+    while True:
+        try:
+            asleep = ttl * 3
+            logger.debug(f'autokill: sleeping for {asleep} seconds')
+            await asyncio.sleep(asleep)
+        except asyncio.CancelledError:
+            logger.debug(f'autokill: received cancel, beacon was received')
+            continue
+        except Exception as err:
+            logger.debug(f'autokill: unknown exception {err}')
+            continue
+        else:
+            logger.debug(f'autokill: No beacons received')
+            break
+
+    # No beacons received: set the autokill event, and schedule a call
+    # to os._exit a bit later so that unit tests can wait on autokill_event
+
     logger.error(f'Exiting worker because of no beacon activity')
-    os._exit(1)
+
+    autokill_event.set()
+    loop.call_later(2, os._exit, 0)
+
+
+async def publish_beacon_to_delay_queue(channel, wait=0):
+    # Publish to beacon delay queue
+    await asyncio.sleep(wait)
+    try:
+        beacon_payload = json.dumps({'worker_beacon_uuid': worker_beacon_uuid})
+        await channel.publish(
+            beacon_payload,
+            exchange_name='beacon',
+            routing_key=beacon_delay_queue_name,
+            properties={
+                'delivery_mode': 2,
+            }
+        )
+    except aioamqp.exceptions.ChannelClosed:
+        logger.debug(f'Beacon publish: channel is closed !')
+    else:
+        logger.debug(f'Beacon published: {beacon_payload}')
 
 
 async def handle_beacon(channel, body, envelope, properties):
     global autokill_handler
     global worker_beacon_uuid
     global beacon_delay_queue_name
+
+    logger.debug(f'handle_beacon {body} {channel}')
 
     if autokill_handler:
         # ACK beacon queue
@@ -156,18 +221,10 @@ async def handle_beacon(channel, body, envelope, properties):
         # Cancel previous autokill
         autokill_handler.cancel()
 
-    # Re-schedule autokill_handler
-    autokill_handler = asyncio.ensure_future(autokill())
-
-    # Publish to beacon delay queue
-    await channel.publish(
-        json.dumps({'worker_beacon_uuid': worker_beacon_uuid}),
-        exchange_name='beacon',
-        routing_key=beacon_delay_queue_name,
-        properties={
-            'delivery_mode': 2,
-        }
-    )
+    # Schedule sending of beacon
+    ttl = app_settings['amqp'].get('beaconttl', None)
+    if ttl:
+        await publish_beacon_to_delay_queue(channel, wait=ttl)
 
 
 async def connect(**kwargs):
@@ -186,6 +243,7 @@ async def connect(**kwargs):
     channel = await protocol.channel()
 
     # Setup beacon liveness queues
-    await setup_beacon_queues(channel)
+    await setup_beacon_queues(
+        channel, ttl=amqp_settings.get('beaconttl', 30))
 
     return channel, transport, protocol
