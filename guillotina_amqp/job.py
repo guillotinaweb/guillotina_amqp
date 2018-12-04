@@ -14,6 +14,7 @@ from guillotina.transactions import commit
 from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.interfaces import ITaskDefinition
+from guillotina_amqp.interfaces import MessageType
 from guillotina_amqp.state import get_state_manager
 from multidict import CIMultiDict
 from unittest import mock
@@ -21,6 +22,7 @@ from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
 import aiotask_context
+import inspect
 import logging
 import yarl
 import asyncio
@@ -189,45 +191,52 @@ class Job:
         #
         # There are 2 different event types:
         #
-        # type = 0: task value yield
-        # type = 1: task message, will be logged to the state manager
+        # type = MessageType.RESULT: task value yield
+        # type = MessageType.DEBUG: task message, will be logged to the state manager3
         #
         # All the values yielded by the task are returned as a list to the
         # caller
         #
 
-        try:
+        # Function is an async generator
+        if inspect.isasyncgenfunction(func):
             async for status in func(*self.data['args'], **self.data['kwargs']):
                 if not isinstance(status, tuple) or len(status) != 2:
                     logger.debug(f'Job: invalid generator event: {status}')
                     continue
 
-                evtype, content = status
+                msg_type, content = status
 
-                if evtype == 1:  # Task message, record it in the task's evlog
+                if msg_type == MessageType.DEBUG:
+                    # DEBUG message: record it in the task's event log
                     date_now = datetime.now().isoformat(' ', 'milliseconds')
                     logger.debug(f'Job {task_id}: function data {self.data}, got msg {content}')
+
+                    # Update the status with new log
                     state = await self.state_manager.get(task_id)
-                    evlog = state.setdefault('eventlog', {})
-                    evlog[date_now] = content
+                    state.setdefault('eventlog', [])
+                    state['eventlog'].append([date_now, content])
                     await self.state_manager.update(task_id, state)
-                elif evtype == 0:  # Task value yielded
-                    # Accumulate all the generator results in a list
+
+                elif msg_type == MessageType.RESULT:
+                    # RESULT value yielded: accumulate all the
+                    # generator results in a list
                     logger.debug(f'Job {task_id}: function data {self.data}, got result {content}')
                     if result is None:
                         result = [content]
                     elif isinstance(result, list):
                         result.append(content)
                 else:
-                    logger.debug(f'Job {task_id}: invalid generator event code {evtype}')
+                    # Unknown message: log and continue
+                    logger.debug(f'Job {task_id}: invalid generator event code {msg_type}')
                     continue
-        except TypeError:
-            # Regular function
+        else:
+            # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
 
+        # Finish and return result
         await commit(request)
         committed = True
-
         if request is not None and not committed:
             await abort(request)
         return result

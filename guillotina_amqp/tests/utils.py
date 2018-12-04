@@ -1,4 +1,5 @@
 from guillotina_amqp.decorators import task
+from guillotina_amqp.interfaces import MessageType
 import asyncio
 
 
@@ -7,21 +8,21 @@ async def _test_func(one, two, one_keyword=None):
 
 
 async def _test_asyncgen(one, two, one_keyword=None):
-    yield (1, 'Starting task')
-    yield (1, 'Yellow')
-    yield (0, one + two)
+    yield (MessageType.DEBUG, 'Starting task')
+    yield (MessageType.DEBUG, 'Yellow')
+    yield (MessageType.RESULT, one + two)
 
 
 async def _test_asyncgen_invalid():
-    yield (1, 1, 2, 3)
-    yield (0)
+    yield (MessageType.DEBUG, 1, 2, 3)
+    yield (MessageType.RESULT)
 
 
 async def _test_asyncgen_doubley(arg1, arg2, arg3):
-    yield (0, arg1)
-    yield (0, arg2)
-    yield (1, 'OK')
-    yield (0, arg3)
+    yield (MessageType.RESULT, arg1)
+    yield (MessageType.RESULT, arg2)
+    yield (MessageType.DEBUG, 'OK')
+    yield (MessageType.RESULT, arg3)
 
 
 @task

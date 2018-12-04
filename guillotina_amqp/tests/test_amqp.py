@@ -36,7 +36,7 @@ async def test_generator_tasks(dummy_request, amqp_worker, amqp_channel,
 
     state = await ts.get_state()
     assert state['status'] == 'finished'
-    assert 'Yellow' in state['eventlog'].values()
+    assert 'Yellow' in state['eventlog'][-1]
     assert await ts.get_result() == [3]
     main_queue = await amqp_worker.queue_main(amqp_channel)
     assert main_queue['message_count'] == 0
@@ -87,6 +87,27 @@ async def test_task_commits_data_from_service(amqp_worker, container_requester):
         assert amqp_worker.total_run == 1
         resp, status = await requester('GET', '/db/guillotina/foobar')
         assert resp['title'] == 'Foobar written'
+
+
+async def test_async_gen_task_commits_data_from_service(configured_state_manager,
+                                                        amqp_worker, container_requester):
+    async with container_requester as requester:
+        await requester('POST', '/db/guillotina', data=json.dumps({
+            '@type': 'Item',
+            'id': 'foobar',
+            'title': 'blah'
+        }))
+        resp, _ = await requester('GET', '/db/guillotina/foobar/@foobar-write-async-gen')
+        state = TaskState(resp['task_id'])
+        await state.join(0.01)
+        assert await state.get_status() == 'finished'
+        task_state = await state.get_state()
+        assert len(task_state['eventlog']) is 3
+        assert await state.get_result() == ['one', 'two', 'final']
+        await asyncio.sleep(0.1)  # prevent possible race condition here
+        assert amqp_worker.total_run == 1
+        resp, status = await requester('GET', '/db/guillotina/foobar')
+        assert resp['title'] == 'CHANGED!'
 
 
 async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_state_manager):
