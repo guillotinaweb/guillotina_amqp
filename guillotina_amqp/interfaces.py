@@ -2,6 +2,12 @@ from zope.interface import Attribute
 from zope.interface import Interface
 
 
+class MessageType(object):
+    """Encapsulates constants message types"""
+    RESULT = 'result'
+    DEBUG = 'debug'
+
+
 class IStateManagerUtility(Interface):
     async def update(task_id, data):
         """Updates data related to task id into state manager
