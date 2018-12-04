@@ -1,3 +1,8 @@
+2.0.2
+-----
+
+Bugfix: support async generators for object tasks aswell [lferran]
+
 2.0.0
 -----
 
