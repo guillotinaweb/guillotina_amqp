@@ -11,6 +11,7 @@ from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 
+import inspect
 import aioamqp
 import json
 import logging
@@ -104,19 +105,34 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             retries += 1
 
 
-async def _run_object_task(dotted_func, path, *args, **kwargs):
+async def _prepare_func(dotted_func, path, *args, **kwargs):
     request = get_current_request()
     ob = await navigate_to(request.container, path)
     func = resolve_dotted_name(dotted_func)
     if ITaskDefinition.providedBy(func):
         func = func.func
+    return ob, func
+
+
+async def _run_object_task(dotted_func, path, *args, **kwargs):
+    ob, func = await _prepare_func(dotted_func, path, *args, **kwargs)
     return await func(ob, *args, **kwargs)
+
+
+async def _yield_object_task(dotted_func, path, *args, **kwargs):
+    ob, func = await _prepare_func(dotted_func, path, *args, **kwargs)
+    async for res in func(ob, *args, **kwargs):
+        yield res
 
 
 async def add_object_task(callable=None, ob=None, *args,
                           _request=None, _retries=3, **kwargs):
+    superfunc = _run_object_task
+    if inspect.isasyncgenfunction(callable):
+        # async generators need to be yielded from
+        superfunc = _yield_object_task
     return await add_task(
-        _run_object_task, get_dotted_name(callable), get_content_path(ob), *args,
+        superfunc, get_dotted_name(callable), get_content_path(ob), *args,
         _request=_request, _retries=_retries, **kwargs)
 
 
