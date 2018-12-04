@@ -1,4 +1,4 @@
-2.0.2
+2.0.1
 -----
 
 Bugfix: support async generators for object tasks aswell [lferran]
