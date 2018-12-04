@@ -75,7 +75,7 @@ class Worker:
         dotted_name = data['func']
         await self.state_manager.update(task_id, {
             'status': 'scheduled',
-            'eventlog': {},
+            'eventlog': [],
         })
         logger.info(f'Received task: {task_id}: {dotted_name}')
 
