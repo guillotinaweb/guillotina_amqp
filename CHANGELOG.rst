@@ -1,3 +1,9 @@
+2.0.1
+-----
+
+- Don't use globals for the beacons liveness system and move the code
+  to the BeaconsManager class (1 manager per connection) [davidonna]
+
 2.0.0
 -----
 
