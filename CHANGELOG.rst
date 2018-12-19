@@ -2,7 +2,8 @@
 2.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix publish_beacon_to_delay_queue call sig error
+  [vangheem]
 
 
 2.0.2 (2018-12-06)

@@ -243,7 +243,7 @@ class BeaconsManager:
 
         # Schedule sending of beacon
         if not self._stopped:
-            await self.publish_beacon_to_delay_queue(channel, wait=self.ttl)
+            await self.publish_beacon_to_delay_queue(wait=self.ttl)
 
     def stop(self):
         self._stopped = True
