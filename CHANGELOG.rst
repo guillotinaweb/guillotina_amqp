@@ -1,5 +1,5 @@
 
-2.0.3 (unreleased)
+2.0.3 (2018-12-19)
 ------------------
 
 - Fix publish_beacon_to_delay_queue call sig error
