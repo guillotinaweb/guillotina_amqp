@@ -1,8 +1,8 @@
-
-2.0.4 (unreleased)
+2.1.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Added custom permission for amqp endpoints and assigned to
+  `guillotina.Manager` role by default [lferran]
 
 
 2.0.3 (2018-12-19)

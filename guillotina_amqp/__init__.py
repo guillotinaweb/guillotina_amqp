@@ -28,4 +28,5 @@ def includeme(root):
     """
     custom application initialization here
     """
+    configure.scan('guillotina_amqp.permissions')
     configure.scan('guillotina_amqp.api')
