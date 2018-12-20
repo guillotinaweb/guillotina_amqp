@@ -15,7 +15,8 @@ import asyncio
 import json
 
 
-async def test_add_task(dummy_request, amqp_worker, amqp_channel,
+async def test_add_task(dummy_request, rabbitmq_container,
+                        amqp_worker, amqp_channel,
                         configured_state_manager):
     aiotask_context.set('request', dummy_request)
     ts = await add_task(_test_func, 1, 2)
@@ -29,7 +30,8 @@ async def test_add_task(dummy_request, amqp_worker, amqp_channel,
     aiotask_context.set('request', None)
 
 
-async def test_generator_tasks(dummy_request, amqp_worker, amqp_channel,
+async def test_generator_tasks(dummy_request, rabbitmq_container,
+                               amqp_worker, amqp_channel,
                                configured_state_manager):
     aiotask_context.set('request', dummy_request)
     ts = await add_task(_test_asyncgen, 1, 2)
@@ -53,7 +55,7 @@ async def test_generator_tasks(dummy_request, amqp_worker, amqp_channel,
     aiotask_context.set('request', None)
 
 
-async def test_run_task(dummy_request, amqp_worker):
+async def test_run_task(dummy_request, rabbitmq_container, amqp_worker):
     aiotask_context.set('request', dummy_request)
     state = await add_task(_test_func, 1, 2)
     await state.join(0.01)
@@ -63,7 +65,8 @@ async def test_run_task(dummy_request, amqp_worker):
     aiotask_context.set('request', None)
 
 
-async def test_task_from_service(amqp_worker, container_requester):
+async def test_task_from_service(rabbitmq_container, amqp_worker,
+                                 container_requester):
     async with container_requester as requester:
         resp, _ = await requester('GET', '/db/guillotina/@foobar')
         state = TaskState(resp['task_id'])
@@ -73,7 +76,9 @@ async def test_task_from_service(amqp_worker, container_requester):
         assert amqp_worker.total_run == 1
 
 
-async def test_task_commits_data_from_service(amqp_worker, container_requester):
+async def test_task_commits_data_from_service(rabbitmq_container,
+                                              amqp_worker,
+                                              container_requester):
     async with container_requester as requester:
         await requester('POST', '/db/guillotina', data=json.dumps({
             '@type': 'Item',
@@ -91,7 +96,9 @@ async def test_task_commits_data_from_service(amqp_worker, container_requester):
 
 
 async def test_async_gen_task_commits_data_from_service(configured_state_manager,
-                                                        amqp_worker, container_requester):
+                                                        rabbitmq_container,
+                                                        amqp_worker,
+                                                        container_requester):
     async with container_requester as requester:
         await requester('POST', '/db/guillotina', data=json.dumps({
             '@type': 'Item',
@@ -111,7 +118,10 @@ async def test_async_gen_task_commits_data_from_service(configured_state_manager
         assert resp['title'] == 'CHANGED!'
 
 
-async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_state_manager):
+async def test_cancels_long_running_task(dummy_request,
+                                         rabbitmq_container,
+                                         amqp_worker,
+                                         configured_state_manager):
     aiotask_context.set('request', dummy_request)
     # Add long running task
     ts = await _test_long_func(120)
@@ -131,7 +141,7 @@ async def test_cancels_long_running_task(dummy_request, amqp_worker, configured_
     aiotask_context.set('request', None)
 
 
-async def test_decorator_task(dummy_request, amqp_worker):
+async def test_decorator_task(dummy_request, rabbitmq_container, amqp_worker):
     aiotask_context.set('request', dummy_request)
     state = await _decorator_test_func(1, 2)
     data = await state.join(0.01)
@@ -144,6 +154,7 @@ async def test_decorator_task(dummy_request, amqp_worker):
 
 
 async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
+                                                                rabbitmq_container,
                                                                 amqp_worker,
                                                                 amqp_channel):
     aiotask_context.set('request', dummy_request)
@@ -173,6 +184,7 @@ async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
 
 
 async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
+                                                          rabbitmq_container,
                                                           amqp_worker,
                                                           amqp_channel):
     aiotask_context.set('request', dummy_request)
@@ -206,8 +218,8 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
 
 
 async def test_worker_beacons_process_exit(dummy_request,
-                                           amqp_worker,
-                                           amqp_channel):
+                                           rabbitmq_container,
+                                           amqp_worker, amqp_channel):
     aiotask_context.set('request', dummy_request)
 
     # Give the worker some job and sleep
