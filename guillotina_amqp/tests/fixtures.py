@@ -100,5 +100,5 @@ def rabbitmq_container(rabbitmq):
         "heartbeat": 120,  # 2 minutes
         "exchange": "guillotina",
         "queue": "guillotina",
-        "beaconttl": 2
+        "beaconttl": 5
     })
