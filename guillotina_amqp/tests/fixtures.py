@@ -33,7 +33,7 @@ testing.configure_with(base_settings_configurator)
 
 
 @pytest.fixture('function')
-def amqp_worker(loop, rabbitmq_container):
+def amqp_worker(loop):
     amqp.logger.setLevel(10)
 
     # Create worker
