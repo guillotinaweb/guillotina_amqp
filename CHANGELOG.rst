@@ -4,6 +4,7 @@
 - Added custom permission for amqp endpoints and assigned to
   `guillotina.Manager` role by default [lferran]
 
+- Configurable ttls for delay and error queues [lferran]
 
 2.0.3 (2018-12-19)
 ------------------
