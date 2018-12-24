@@ -17,8 +17,6 @@ app_settings = {
         "exchange": "guillotina",
         "queue": "guillotina",
         "persistent_manager": "memory",
-        "delayed_ttl_ms": 1000 * 60,  # <-- 1 minute
-        "errored_ttl_ms": 1000 * 60 * 60 * 24 * 7,  # <-- 1 week
     },
     'commands': {
         "amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"

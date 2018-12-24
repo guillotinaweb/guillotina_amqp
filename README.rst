@@ -52,8 +52,8 @@ Example docs::
 - `login` and `password`: should match the rabbit-mq access credentials
 - `queue`: main queue where tasks are consumed from
 - `persistent_manager`: named utility to use to keep tasks state.
-`delay_ttl_ms` and `errored_ttl_ms` can be used to configure queue
-delays.
+- `delay_ttl_ms` and `errored_ttl_ms`: can be used to configure queue
+delays. Default to 2 minutes and 1 week, correspondingly.
 
 
 Dependencies
