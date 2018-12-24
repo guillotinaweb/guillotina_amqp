@@ -23,8 +23,8 @@ A watchdog on the asyncio loop can be launched with the
 one of its tasks has captured the loop for too long.
 
 When a task fails, the worker will send it to the delay queue, which
-has been configured to re-queue tasks to the main queue after a certain
-TTL. Failed tasks are retried a limited amount of times.
+has been configured to re-queue tasks to the main queue after a
+certain TTL. Failed tasks are retried a limited amount of times.
 
 
 Configuration
@@ -42,9 +42,18 @@ Example docs::
             "vhost": "/",
             "heartbeat": 800,
             "queue": "guillotina",  # Main consuming queue for workers
-            "persistent_manager": "redis"
+            "persistent_manager": "redis",
+            "delayed_ttl_ms": 60 * 1000,
+            "errored_ttl_ms": 1000 * 60 * 60 * 24 * 7,
         }
     }
+
+- `host` and `port`: should point to the rabbit-mq instance
+- `login` and `password`: should match the rabbit-mq access credentials
+- `queue`: main queue where tasks are consumed from
+- `persistent_manager`: named utility to use to keep tasks state.
+`delay_ttl_ms` and `errored_ttl_ms` can be used to configure queue
+delays.
 
 
 Dependencies
