@@ -1,4 +1,4 @@
-2.1.0 (unreleased)
+2.1.0 (2019-02-04)
 ------------------
 
 - Make sure that abort is run after job failure
