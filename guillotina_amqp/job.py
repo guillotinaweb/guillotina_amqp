@@ -157,7 +157,7 @@ class Job:
         # Clone request for task
         request = await self.create_request()
         try:
-            result = await self.__run()
+            result = await self.__run(request)
             try:
                 # Finish and return result
                 await commit(request)
