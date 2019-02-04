@@ -1,9 +1,10 @@
 from guillotina import app_settings
 from guillotina_amqp import amqp
-from guillotina_amqp.job import Job
-from guillotina_amqp.state import get_state_manager, TaskState
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.exceptions import TaskAlreadyCanceled
+from guillotina_amqp.job import Job
+from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import TaskState
 
 import asyncio
 import json

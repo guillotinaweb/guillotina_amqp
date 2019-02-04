@@ -1,6 +1,12 @@
 2.1.0 (unreleased)
 ------------------
 
+- Make sure that abort is run after job failure
+  [vangheem]
+
+- Execute `request.execute_futures()` after successful
+  [vangheem]
+
 - Added custom permission for amqp endpoints and assigned to
   `guillotina.Manager` role by default [lferran]
 
