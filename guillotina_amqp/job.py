@@ -1,5 +1,6 @@
 from aiohttp import test_utils
 from aiohttp.helpers import noop
+from datetime import datetime
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
 from guillotina.component import get_utility
@@ -22,11 +23,10 @@ from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
 import aiotask_context
+import asyncio
 import inspect
 import logging
 import yarl
-import asyncio
-from datetime import datetime
 
 
 logger = logging.getLogger('guillotina_amqp.job')
@@ -154,9 +154,27 @@ class Job:
         return request
 
     async def __call__(self):
-        request = None
+        # Clone request for task
+        request = await self.create_request()
+        try:
+            result = await self.__run(request)
+            try:
+                # Finish and return result
+                await commit(request)
+                request.execute_futures()
+            except Exception:
+                logger.warning('Error commiting job', exc_info=True)
+                raise
+            return result
+        except Exception:
+            try:
+                await abort(request)
+            except Exception:
+                logger.warning('Error aborting job', exc_info=True)
+            raise
+
+    async def __run(self, request):
         result = None
-        committed = False
         task_id = self.data['task_id']
         dotted_name = self.data['func']
         logger.info(f'Running task: {task_id}: {dotted_name}')
@@ -165,8 +183,6 @@ class Job:
         await self.state_manager.update(self.data['task_id'], {
             'status': 'running'
         })
-        # Clone request for task
-        request = await self.create_request()
 
         req_data = self.data['req_data']
         if 'user' in req_data:
@@ -234,9 +250,4 @@ class Job:
             # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
 
-        # Finish and return result
-        await commit(request)
-        committed = True
-        if request is not None and not committed:
-            await abort(request)
         return result

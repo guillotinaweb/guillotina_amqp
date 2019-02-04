@@ -28,13 +28,13 @@ setup(
     ],
     extras_require={
         'test': [
-            'pytest<=3.1.0',
+            'pytest>=4.1.1',
             'docker',
             'backoff',
             'psycopg2',
+            'psycopg2-binary',
             'pytest-asyncio>=0.8.0',
-            'pytest-aiohttp',
-            'pytest-cov',
+            'pytest-cov>=2.6.1',
             'coverage>=4.4',
             'pytest-docker-fixtures[rabbitmq]==1.2.5',
         ]

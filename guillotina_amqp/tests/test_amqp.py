@@ -110,7 +110,7 @@ async def test_async_gen_task_commits_data_from_service(configured_state_manager
         await state.join(0.01)
         assert await state.get_status() == 'finished'
         task_state = await state.get_state()
-        assert len(task_state['eventlog']) is 3
+        assert len(task_state['eventlog']) == 3
         assert await state.get_result() == ['one', 'two', 'final']
         await asyncio.sleep(0.1)  # prevent possible race condition here
         assert amqp_worker.total_run == 1

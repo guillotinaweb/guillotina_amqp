@@ -206,7 +206,6 @@ class BeaconsManager:
 
         # No beacons received: set the autokill event, and schedule a call
         # to os._exit a bit later so that unit tests can wait on autokill_event
-
         logger.error(f'Exiting worker because of no beacon activity')
 
         self.autokill_event.set()
@@ -226,9 +225,9 @@ class BeaconsManager:
                 }
             )
         except aioamqp.exceptions.ChannelClosed:
-            logger.debug(f'Beacon publish: channel is closed !')
+            logger.warning(f'Beacon publish: channel is closed !')
         else:
-            logger.debug(f'Beacon published: {beacon_payload}')
+            logger.info(f'Beacon published: {beacon_payload}')
 
     async def handle_beacon(self, channel, body, envelope, properties):
         logger.debug(f'handle_beacon {body} {channel}')
