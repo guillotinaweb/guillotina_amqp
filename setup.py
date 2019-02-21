@@ -9,14 +9,14 @@ except IOError:
 
 setup(
     name='guillotina_amqp',
-    version='2.1.1.dev0',
+    version='2.2.0.dev0',
     description='Integrate amqp into guillotina',
     long_description=README,
     install_requires=[
-        'guillotina>=4.0.0',
+        'guillotina>=3.2.18,<4.0.0',
         'aioamqp',
         'lru-dict',
-        'guillotina_rediscache>=2.0.4',
+        'guillotina_rediscache>=1.3.4',
     ],
     author='Nathan Van Gheem',
     author_email='vangheem@gmail.com',
