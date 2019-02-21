@@ -42,7 +42,7 @@ async def test_info_task(container_requester, dummy_request):
         resp, status = await requester(
             'GET', '/db/guillotina/@amqp-info/foo')
         assert status == 404
-        assert 'Task not found' in resp.decode()
+        assert resp['reason'] == 'Task not found'
 
     aiotask_context.set('request', None)
 
