@@ -63,13 +63,17 @@ class WorkerCommand(Command):
         parser.add_argument('--auto-kill-timeout',
                             help='How long of no activity before we automatically kill process',
                             type=int, default=-1)
+        parser.add_argument('--max-running-tasks',
+                            help='Max simultaneous running tasks',
+                            type=int, default=None)
         return parser
 
     async def run(self, arguments, settings, app):
         aiotask_context.set('request', self.request)
 
         # Run the actual worker in the same loop
-        worker = Worker(self.request, self.get_loop())
+        worker = Worker(self.request, self.get_loop(),
+                        arguments.max_running_tasks)
         await worker.start()
 
         timeout = arguments.auto_kill_timeout

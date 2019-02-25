@@ -16,6 +16,7 @@ base_amqp_settings = {
     "exchange": "",
     "queue": "guillotina",
     "persistent_manager": "memory",
+    "max_running_tasks": 10,
     "delayed_ttl_ms": 1000 * 60,  # <-- 1 minute
     "errored_ttl_ms": 1000 * 60 * 60 * 24 * 7,  # <-- 1 week
 }

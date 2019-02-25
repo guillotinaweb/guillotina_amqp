@@ -1,8 +1,7 @@
-2.1.1 (unreleased)
+2.3.0 (2019-02-24)
 ------------------
 
-- Nothing changed yet.
-
+- Make max running tasks parameter configurable [lferran]
 
 2.1.0 (2019-02-04)
 ------------------

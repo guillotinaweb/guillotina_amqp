@@ -33,12 +33,12 @@ class Worker:
     total_errored = 0
     max_task_retries = 5
 
-    def __init__(self, request=None, loop=None, max_size=5):
+    def __init__(self, request=None, loop=None, max_size=None):
         self.request = request
         self.loop = loop
         self._running = []
         self._done = []
-        self._max_size = max_size
+        self._max_size = max_size or app_settings['amqp'].get('max_running_tasks', 5)
         self._closing = False
         self._state_manager = None
 
@@ -84,6 +84,7 @@ class Worker:
 
         # Block if we reached maximum number of running tasks
         while len(self._running) >= self._max_size:
+            logger.warning(f'Max running tasks reached: {self._max_size}')
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()
 
