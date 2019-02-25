@@ -41,6 +41,7 @@ class Worker:
         self._max_size = max_size or app_settings['amqp'].get('max_running_tasks', 5)
         self._closing = False
         self._state_manager = None
+        self._state_ttl = int(app_settings['amqp']['state_ttl'])
 
         # RabbitMQ queue names defined here
         self.MAIN_EXCHANGE = app_settings['amqp']['exchange']
@@ -129,7 +130,7 @@ class Worker:
         await self.state_manager.update(task_id, {
             'status': 'canceled',
             'error': task.print_stack(),
-        })
+        }, ttl=self._state_ttl)
 
     async def _handle_max_retries_reached(self, task):
         task_id = task._job.data['task_id']
@@ -183,7 +184,7 @@ class Worker:
         await self.state_manager.update(task_id, {
             'status': 'finished',
             'result': task.result(),
-        })
+        }, ttl=self._state_ttl)
         logger.info(f'Finished task: {task_id}: {dotted_name}')
 
     def _task_done_callback(self, task):

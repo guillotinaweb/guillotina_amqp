@@ -19,6 +19,7 @@ base_amqp_settings = {
     "max_running_tasks": 10,
     "delayed_ttl_ms": 1000 * 60,  # <-- 1 minute
     "errored_ttl_ms": 1000 * 60 * 60 * 24 * 7,  # <-- 1 week
+    "state_ttl": 10,
 }
 
 
@@ -83,6 +84,29 @@ def configured_state_manager(request, redis, dummy_request, loop):
         app_settings['amqp']['persistent_manager'] = 'memory'
         print('Running with memory')
         yield
+
+
+@pytest.fixture('function')
+def redis_state_manager(redis, dummy_request, loop):
+    # Redis
+    app_settings['amqp']['persistent_manager'] = 'redis'
+    app_settings['redis_prefix_key'] = f'amqpjobs-{uuid.uuid4()}-'
+    app_settings.update({"redis": {
+        'host': redis[0],
+        'port': redis[1],
+        'pool': {
+            "minsize": 1,
+            "maxsize": 5,
+        },
+    }})
+    print('Running with redis')
+    yield redis
+
+    # NOTE: we need to close the redis pool otherwise it's
+    # attached to the first loop and the nexts tests have new
+    # loops, which causes its to crash
+    from guillotina_rediscache.cache import close_redis_pool
+    loop.run_until_complete(close_redis_pool())
 
 
 @pytest.fixture('function')

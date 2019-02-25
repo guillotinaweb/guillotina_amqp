@@ -43,7 +43,7 @@ class MemoryStateManager:
     def set_loop(self, loop=None):
         pass
 
-    async def update(self, task_id, data):
+    async def update(self, task_id, data, ttl=None):
         # Updates existing data with new data
         existing = await self.get(task_id)
         existing.update(data)
@@ -184,7 +184,9 @@ class RedisStateManager:
             self._cache = _EMPTY
             return None
 
-    async def update(self, task_id, data):
+    async def update(self, task_id, data, ttl=None):
+        """Updates the state of the task. ttl can be set to expire the state.
+        """
         cache = await self.get_cache()
         if cache:
             value = data
@@ -195,6 +197,9 @@ class RedisStateManager:
                 value.update(data)
             await cache.set(
                 self._cache_prefix + task_id, json.dumps(value))
+            if ttl:
+                resp = await cache.expire(self._cache_prefix + task_id, ttl)
+                return resp > 0
 
     async def get(self, task_id):
         cache = await self.get_cache()

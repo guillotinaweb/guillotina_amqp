@@ -103,3 +103,14 @@ async def test_release_should_raise_if_task_is_not_yours(configured_state_manage
     state_manager.worker_id = 'me'
     await state_manager.release('footask')
     await clear_cache(state_manager)
+
+
+async def test_task_state_disappears_after_ttl(redis_state_manager, loop):
+    state_manager = get_state_manager(loop)
+    await state_manager.update('foo', {'state': 'bar'}, ttl=2)
+    data = await state_manager.get('foo')
+    assert data['state'] == 'bar'
+    await asyncio.sleep(2)
+    data = await state_manager.get('foo')
+    assert not data
+    await clear_cache(state_manager)
