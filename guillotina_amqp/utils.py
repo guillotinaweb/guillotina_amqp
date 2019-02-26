@@ -10,6 +10,7 @@ from guillotina_amqp import amqp
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
+from guillotina_amqp.state import update_task_scheduled
 
 import inspect
 import aioamqp
@@ -92,10 +93,8 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
             )
             # Update tasks's global state
             state_manager = get_state_manager()
-            await state_manager.update(task_id, {
-                'status': 'scheduled',
-                'updated': time.time()
-            })
+            await update_task_scheduled(state_manager, task_id,
+                                        updated=time.time())
             logger.info(f'Scheduled task: {task_id}: {dotted_name}')
             return state
         except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
@@ -138,6 +137,7 @@ async def add_object_task(callable=None, ob=None, *args,
 
 class TimeoutLock(object):
     """Implements a Lock that can be acquired for """
+
     def __init__(self, worker_id):
         self._lock = asyncio.Lock()
         self.worker_id = worker_id
