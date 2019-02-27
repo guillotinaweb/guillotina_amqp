@@ -17,6 +17,7 @@ from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
 from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import update_task_running
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
@@ -180,9 +181,7 @@ class Job:
         logger.info(f'Running task: {task_id}: {dotted_name}')
 
         # Update status
-        await self.state_manager.update(self.data['task_id'], {
-            'status': 'running'
-        })
+        await update_task_running(self.state_manager, task_id)
 
         req_data = self.data['req_data']
         if 'user' in req_data:

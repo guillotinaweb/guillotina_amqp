@@ -4,6 +4,10 @@ from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.exceptions import TaskAlreadyCanceled
 from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import update_task_errored
+from guillotina_amqp.state import update_task_scheduled
+from guillotina_amqp.state import update_task_finished
+from guillotina_amqp.state import update_task_canceled
 from guillotina_amqp.state import TaskState
 
 import asyncio
@@ -33,14 +37,15 @@ class Worker:
     total_errored = 0
     max_task_retries = 5
 
-    def __init__(self, request=None, loop=None, max_size=5):
+    def __init__(self, request=None, loop=None, max_size=None):
         self.request = request
         self.loop = loop
         self._running = []
         self._done = []
-        self._max_size = max_size
+        self._max_size = max_size or app_settings['amqp'].get('max_running_tasks', 5)
         self._closing = False
         self._state_manager = None
+        self._state_ttl = int(app_settings['amqp']['state_ttl'])
 
         # RabbitMQ queue names defined here
         self.MAIN_EXCHANGE = app_settings['amqp']['exchange']
@@ -76,14 +81,13 @@ class Worker:
         # Set status to scheduled
         task_id = data['task_id']
         dotted_name = data['func']
-        await self.state_manager.update(task_id, {
-            'status': 'scheduled',
-            'eventlog': [],
-        })
+
+        await update_task_scheduled(self.state_manager, task_id, eventlog=[])
         logger.info(f'Received task: {task_id}: {dotted_name}')
 
         # Block if we reached maximum number of running tasks
         while len(self._running) >= self._max_size:
+            logger.warning(f'Max running tasks reached: {self._max_size}')
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()
 
@@ -125,10 +129,8 @@ class Worker:
             delivery_tag=task._job.envelope.delivery_tag)
 
         # Set status to cancelled
-        await self.state_manager.update(task_id, {
-            'status': 'canceled',
-            'error': task.print_stack(),
-        })
+        await update_task_canceled(self.state_manager, task_id,
+                                   task=task, ttl=self._state_ttl)
 
     async def _handle_max_retries_reached(self, task):
         task_id = task._job.data['task_id']
@@ -141,21 +143,17 @@ class Worker:
             multiple=False, requeue=False)
 
         # Update status to errored with the traceback
-        await self.state_manager.update(task_id, {
-            'status': 'errored',
-            'error': task.print_stack(),
-        })
+        await update_task_errored(self.state_manager, task_id, task=task,
+                                  ttl=self._state_ttl)
 
     async def _handle_retry(self, task, current_retries):
         task_id = task._job.data['task_id']
         channel = task._job.channel
         logger.debug(f'handle_retry: task {task_id} retries {current_retries}')
         # Increment retry count
-        await self.state_manager.update(task_id, {
-            'job_retries': current_retries + 1,
-            'status': 'errored',
-            'error': task.print_stack()
-        })
+        await update_task_errored(self.state_manager, task_id, task=task,
+                                  ttl=self._state_ttl,
+                                  job_retries=current_retries + 1)
 
         # Publish task data to delay queue
         await channel.publish(
@@ -179,10 +177,10 @@ class Worker:
             delivery_tag=task._job.envelope.delivery_tag)
 
         # Update status with result
-        await self.state_manager.update(task_id, {
-            'status': 'finished',
-            'result': task.result(),
-        })
+        await update_task_finished(self.state_manager, task_id,
+                                   task=task,
+                                   ttl=self._state_ttl,
+                                   result=task.result())
         logger.info(f'Finished task: {task_id}: {dotted_name}')
 
     def _task_done_callback(self, task):

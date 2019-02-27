@@ -1,7 +1,9 @@
-2.1.1 (unreleased)
+2.2.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Expire finished and errored tasks
+- Make max running tasks parameter configurable
+- Refactor way we update task states
 
 
 2.1.0 (2019-02-04)

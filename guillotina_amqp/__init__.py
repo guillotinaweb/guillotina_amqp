@@ -17,6 +17,8 @@ app_settings = {
         "exchange": "guillotina",
         "queue": "guillotina",
         "persistent_manager": "memory",
+        "max_running_tasks": 200,
+        "state_ttl": 60 * 60 * 24,  # 1 day
     },
     'commands': {
         "amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"

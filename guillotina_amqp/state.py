@@ -28,11 +28,20 @@ logger = logging.getLogger('guillotina_amqp.state')
 DEFAULT_LOCK_TTL_S = 60 * 1  # 1 minute
 
 
+class TaskStatus:
+    SCHEDULED = 'scheduled'
+    CANCELED = 'canceled'
+    RUNNING = 'running'
+    FINISHED = 'finished'
+    ERRORED = 'errored'
+
+
 @configure.utility(provides=IStateManagerUtility, name='memory')
 class MemoryStateManager:
     '''
     Meaningless for anyting other than tests
     '''
+
     def __init__(self, size=10):
         self.size = size
         self._data = LRU(self.size)
@@ -43,7 +52,7 @@ class MemoryStateManager:
     def set_loop(self, loop=None):
         pass
 
-    async def update(self, task_id, data):
+    async def update(self, task_id, data, ttl=None):
         # Updates existing data with new data
         existing = await self.get(task_id)
         existing.update(data)
@@ -184,7 +193,9 @@ class RedisStateManager:
             self._cache = _EMPTY
             return None
 
-    async def update(self, task_id, data):
+    async def update(self, task_id, data, ttl=None):
+        """Updates the state of the task. ttl can be set to expire the state.
+        """
         cache = await self.get_cache()
         if cache:
             value = data
@@ -195,6 +206,9 @@ class RedisStateManager:
                 value.update(data)
             await cache.set(
                 self._cache_prefix + task_id, json.dumps(value))
+            if ttl:
+                resp = await cache.expire(self._cache_prefix + task_id, ttl)
+                return resp > 0
 
     async def get(self, task_id):
         cache = await self.get_cache()
@@ -305,7 +319,8 @@ class TaskState:
             data = await util.get(self.task_id)
             if not data:
                 raise TaskNotFoundException(self.task_id)
-            if data.get('status') in ('finished', 'errored', 'canceled'):
+            if data.get('status') in (TaskStatus.FINISHED, TaskStatus.ERRORED,
+                                      TaskStatus.CANCELED):
                 return data
             await asyncio.sleep(wait)
 
@@ -320,7 +335,6 @@ class TaskState:
         '''
         possible statuses:
         - scheduled
-        - consumed
         - canceled
         - running
         - finished
@@ -337,7 +351,7 @@ class TaskState:
         data = await util.get(self.task_id)
         if not data:
             raise TaskNotFoundException(self.task_id)
-        if data.get('status') not in ('finished', 'errored'):
+        if data.get('status') not in (TaskStatus.FINISHED, TaskStatus.ERRORED):
             raise TaskNotFinishedException(self.task_id)
         return data.get('result')
 
@@ -372,3 +386,54 @@ class TaskState:
     async def is_canceled(self):
         util = get_state_manager()
         return await util.is_canceled(self.task_id)
+
+
+async def update_task_status(state_manager, task_id, status, task=None, ttl=None,
+                             result=None, **kwargs):
+    if ttl is None:
+        ttl = int(app_settings['amqp']['state_ttl'])
+
+    task_data = {
+        'status': status
+    }
+
+    if result:
+        task_data['result'] = result
+
+    task_data.update(**kwargs)
+
+    await state_manager.update(task_id, task_data, ttl=ttl)
+
+
+async def update_task_errored(state_manager, task_id, task=None, ttl=None,
+                              result=None, **kwargs):
+    await update_task_status(state_manager, task_id, TaskStatus.ERRORED,
+                             task=task, ttl=ttl, result=result,
+                             error=task.print_stack() if task else None,
+                             **kwargs)
+
+
+async def update_task_finished(state_manager, task_id, task=None, ttl=None,
+                               result=None, **kwargs):
+    await update_task_status(state_manager, task_id, TaskStatus.FINISHED,
+                             task=task, ttl=ttl, result=result, **kwargs)
+
+
+async def update_task_scheduled(state_manager, task_id, task=None, ttl=None,
+                                result=None, **kwargs):
+    await update_task_status(state_manager, task_id, TaskStatus.SCHEDULED,
+                             task=task, ttl=ttl, result=result, **kwargs)
+
+
+async def update_task_canceled(state_manager, task_id, task=None, ttl=None,
+                               result=None, **kwargs):
+    await update_task_status(state_manager, task_id, TaskStatus.CANCELED,
+                             task=task, ttl=ttl, result=result,
+                             error=task.print_stack() if task else None,
+                             **kwargs)
+
+
+async def update_task_running(state_manager, task_id, task=None, ttl=None,
+                              result=None, **kwargs):
+    await update_task_status(state_manager, task_id, TaskStatus.RUNNING,
+                             task=task, ttl=ttl, result=result, **kwargs)

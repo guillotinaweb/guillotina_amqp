@@ -1,5 +1,6 @@
 from guillotina_amqp.amqp import get_beaconsmgr_for_connection
 from guillotina_amqp.state import TaskState
+from guillotina_amqp.state import TaskStatus
 from guillotina_amqp.utils import add_task
 from guillotina_amqp.utils import cancel_task
 from guillotina_amqp.tests.utils import _test_func
@@ -23,7 +24,7 @@ async def test_add_task(dummy_request, rabbitmq_container,
     await ts.join(0.02)
 
     state = await ts.get_state()
-    assert state['status'] == 'finished'
+    assert state['status'] == TaskStatus.FINISHED
     main_queue = await amqp_worker.queue_main(amqp_channel)
     assert main_queue['message_count'] == 0
 
@@ -38,7 +39,7 @@ async def test_generator_tasks(dummy_request, rabbitmq_container,
     await ts.join(0.02)
 
     state = await ts.get_state()
-    assert state['status'] == 'finished'
+    assert state['status'] == TaskStatus.FINISHED
     assert 'Yellow' in state['eventlog'][-1]
     assert await ts.get_result() == [3]
     main_queue = await amqp_worker.queue_main(amqp_channel)
@@ -135,7 +136,7 @@ async def test_cancels_long_running_task(dummy_request,
 
     # Check that the it was indeed cancelled
     state = await ts.get_state()
-    assert state['status'] == 'canceled'
+    assert state['status'] == TaskStatus.CANCELED
     await asyncio.sleep(0.1)  # prevent possible race condition here
     assert amqp_worker.total_run == 1
     aiotask_context.set('request', None)
@@ -164,7 +165,7 @@ async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
     assert amqp_worker.total_run == 1
     await amqp_worker.join()
     state = await ts.get_state()
-    assert state['status'] == 'errored'
+    assert state['status'] == TaskStatus.ERRORED
     assert state['job_retries'] == 1
 
     task_id = state['job_data']['task_id']

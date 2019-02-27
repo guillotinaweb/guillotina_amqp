@@ -54,7 +54,8 @@ Example docs::
 - `persistent_manager`: named utility to use to keep tasks state.
 - `delay_ttl_ms` and `errored_ttl_ms`: can be used to configure queue
 delays. Default to 2 minutes and 1 week, correspondingly.
-
+- `max_running_tasks`: maximum number of simultaneous asyncio tasks
+  hat workers are allowed to run.
 
 Dependencies
 ------------
@@ -109,6 +110,12 @@ Run the worker
 command::
 
     g amqp-worker
+
+You can use a couple of additional parameters:
+- `--auto-kill-timeout`: time of inactivity after which the worker
+  will restart himself assuming it got stuck.
+- `--max-running-tasks`: max number of simultaneous asyncio tasks in
+  the event loop. Overwrites configuraiton parameter.
 
 
 Beacons
