@@ -1,12 +1,10 @@
-2.3.1 (2019-02-24)
+2.2.0 (unreleased)
 ------------------
 
-- Expire finished and errored tasks [lferran]
+- Expire finished and errored tasks
+- Make max running tasks parameter configurable
+- Refactor way we update task states
 
-2.3.0 (2019-02-24)
-------------------
-
-- Make max running tasks parameter configurable [lferran]
 
 2.1.0 (2019-02-04)
 ------------------
