@@ -42,6 +42,7 @@ setup(
     license='BSD',
     classifiers=[
         'License :: OSI Approved :: BSD License',
+        'Development Status :: 3 - Alpha',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Topic :: Software Development :: Libraries :: Python Modules',
