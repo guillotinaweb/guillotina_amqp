@@ -12,7 +12,6 @@ from lru import LRU
 
 import asyncio
 import json
-import logging
 import time
 import uuid
 import copy

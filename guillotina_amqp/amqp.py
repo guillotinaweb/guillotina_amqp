@@ -4,7 +4,6 @@ from guillotina_amqp.logger import getLogger
 
 import aioamqp
 import asyncio
-import logging
 import uuid
 import os
 import json
