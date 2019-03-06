@@ -11,17 +11,17 @@ from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import update_task_scheduled
+from guillotina_amqp.logger import getLogger
 
 import inspect
 import aioamqp
 import json
-import logging
 import time
 import uuid
 import asyncio
 
 
-logger = logging.getLogger('guillotina_amqp.utils')
+logger = getLogger('guillotina_amqp.utils')
 
 
 async def cancel_task(task_id):

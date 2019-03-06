@@ -5,8 +5,9 @@ from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.exceptions import TaskAccessUnauthorized
-
 from guillotina_amqp.interfaces import IStateManagerUtility
+from guillotina_amqp.logger import getLogger
+
 from lru import LRU
 
 import asyncio
@@ -23,7 +24,7 @@ except ImportError:
     aioredis = None
 
 
-logger = logging.getLogger('guillotina_amqp.state')
+logger = getLogger('guillotina_amqp.state')
 
 DEFAULT_LOCK_TTL_S = 60 * 1  # 1 minute
 

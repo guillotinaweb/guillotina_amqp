@@ -18,6 +18,8 @@ from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
+from guillotina_amqp.logger import getLogger
+
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
@@ -26,11 +28,10 @@ from zope.interface import alsoProvides
 import aiotask_context
 import asyncio
 import inspect
-import logging
 import yarl
 
 
-logger = logging.getLogger('guillotina_amqp.job')
+logger = getLogger('guillotina_amqp.job')
 
 
 def login_user(request, user_data):
