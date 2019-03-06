@@ -1,9 +1,9 @@
 from guillotina import app_settings
 from guillotina.utils import resolve_dotted_name
+from guillotina import glogging
 
 import aioamqp
 import asyncio
-import logging
 import uuid
 import os
 import json
@@ -11,7 +11,7 @@ import json
 import aioamqp.exceptions
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = glogging.getLogger('guillotina_amqp')
 
 beacon_ttl_default = 30  # 30 seconds
 
