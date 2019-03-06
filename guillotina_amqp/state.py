@@ -1,5 +1,6 @@
 from guillotina import app_settings
 from guillotina import configure
+from guillotina import glogging
 from guillotina.component import get_utility
 from guillotina_amqp.exceptions import TaskNotFinishedException
 from guillotina_amqp.exceptions import TaskNotFoundException
@@ -11,7 +12,6 @@ from lru import LRU
 
 import asyncio
 import json
-import logging
 import time
 import uuid
 import copy
@@ -23,7 +23,7 @@ except ImportError:
     aioredis = None
 
 
-logger = logging.getLogger('guillotina_amqp.state')
+logger = glogging.getLogger('guillotina_amqp.state')
 
 DEFAULT_LOCK_TTL_S = 60 * 1  # 1 minute
 

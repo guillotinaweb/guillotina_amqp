@@ -1,6 +1,7 @@
 from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
+from guillotina import glogging
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
 from guillotina.component import get_utility
@@ -26,11 +27,10 @@ from zope.interface import alsoProvides
 import aiotask_context
 import asyncio
 import inspect
-import logging
 import yarl
 
 
-logger = logging.getLogger('guillotina_amqp.job')
+logger = glogging.getLogger('guillotina_amqp.job')
 
 
 def login_user(request, user_data):

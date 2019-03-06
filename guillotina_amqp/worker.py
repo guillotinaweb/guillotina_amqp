@@ -9,14 +9,14 @@ from guillotina_amqp.state import update_task_scheduled
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_canceled
 from guillotina_amqp.state import TaskState
+from guillotina import glogging
 
 import asyncio
 import json
-import logging
 import time
 
 
-logger = logging.getLogger('guillotina_amqp.worker')
+logger = glogging.getLogger('guillotina_amqp.worker')
 default_delayed = 1000 * 60 * 2  # 2 minutes
 default_errored = 1000 * 60 * 60 * 24 * 7 * 1  # 1 week
 

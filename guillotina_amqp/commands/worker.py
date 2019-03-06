@@ -1,14 +1,14 @@
 from guillotina.commands import Command
 from guillotina_amqp.worker import Worker
+from guillotina import glogging
 
 import aiotask_context
 import asyncio
-import logging
 import threading
 import os
 
 
-logger = logging.getLogger('guillotina_amqp')
+logger = glogging.getLogger('guillotina_amqp')
 
 
 class EventLoopWatchdog(threading.Thread):

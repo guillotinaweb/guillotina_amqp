@@ -22,6 +22,38 @@ base_amqp_settings = {
     "state_ttl": 10,
 }
 
+test_logger_settings = {
+    "version": 1,
+    "formatters": {
+        "default": {
+            "format": "%(asctime)s %(levelname)-8s %(message)s",
+            "datefmt": "%Y-%m-%d %H:%M:%S"
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "default",
+            "level": "DEBUG",
+        }
+    },
+    "loggers": {
+        "guillotina_amqp.state": {
+            "level": "DEBUG",
+            "handlers": ["console"]
+        },
+        "guillotina_amqp.job": {
+            "level": "DEBUG",
+            "handlers": ["console"]
+        },
+        "guillotina_amqp.amqp": {
+            "level": "DEBUG",
+            "handlers": ["console"]
+        },
+
+    }
+}
+
 
 def base_settings_configurator(settings):
     if 'applications' in settings:
@@ -31,6 +63,7 @@ def base_settings_configurator(settings):
     else:
         settings['applications'] = ['guillotina_amqp', 'guillotina_amqp.tests.package']
     settings['amqp'] = base_amqp_settings
+    settings['logging'] = test_logger_settings
 
 
 testing.configure_with(base_settings_configurator)
@@ -38,8 +71,6 @@ testing.configure_with(base_settings_configurator)
 
 @pytest.fixture('function')
 def amqp_worker(loop):
-    amqp.logger.setLevel(10)
-
     # Create worker
     _worker = Worker(loop=loop)
     _worker.update_status_interval = 2

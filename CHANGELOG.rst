@@ -1,7 +1,7 @@
 2.2.1 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Use glogging [lferran]
 
 
 2.2.0 (2019-02-27)
