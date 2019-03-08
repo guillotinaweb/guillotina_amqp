@@ -1,8 +1,8 @@
 2.2.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Bugfix: make prefetch count match the configured max running tasks
+  [lferran]
 
 2.2.1 (2019-03-08)
 ------------------
