@@ -1,4 +1,4 @@
-2.2.2 (unreleased)
+2.2.2 (2019-03-08)
 ------------------
 
 - Bugfix: make prefetch count match the configured max running tasks
