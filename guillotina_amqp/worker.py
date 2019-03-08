@@ -42,7 +42,7 @@ class Worker:
         self.loop = loop
         self._running = []
         self._done = []
-        self._max_size = max_size or app_settings['amqp'].get('max_running_tasks', 5)
+        self._max_running = max_size or app_settings['amqp'].get('max_running_tasks', 5)
         self._closing = False
         self._state_manager = None
         self._state_ttl = int(app_settings['amqp']['state_ttl'])
@@ -86,8 +86,8 @@ class Worker:
         logger.info(f'Received task: {task_id}: {dotted_name}')
 
         # Block if we reached maximum number of running tasks
-        while len(self._running) >= self._max_size:
-            logger.warning(f'Max running tasks reached: {self._max_size}')
+        while len(self._running) >= self._max_running:
+            logger.warning(f'Max running tasks reached: {self._max_running}')
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()
 
@@ -241,7 +241,7 @@ class Worker:
         # Declare delayed queue and bind it
         await self.queue_delayed(channel, passive=False)
 
-        await channel.basic_qos(prefetch_count=4)
+        await channel.basic_qos(prefetch_count=self._max_running)
 
         # Configure task consume callback
         await channel.basic_consume(
