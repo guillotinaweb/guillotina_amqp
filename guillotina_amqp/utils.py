@@ -11,6 +11,7 @@ from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import update_task_scheduled
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina import glogging
 
 import inspect
@@ -106,7 +107,11 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
 
 async def _prepare_func(dotted_func, path, *args, **kwargs):
     request = get_current_request()
-    ob = await navigate_to(request.container, path)
+    try:
+        ob = await navigate_to(request.container, path)
+    except KeyError:
+        logger.warning(f'Object in {path} not found')
+        raise ObjectNotFoundException
     func = resolve_dotted_name(dotted_func)
     if ITaskDefinition.providedBy(func):
         func = func.func

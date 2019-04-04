@@ -20,3 +20,7 @@ class TaskAccessUnauthorized(Exception):
 
 class TaskMaxRetriesReached(Exception):
     pass
+
+
+class ObjectNotFoundException(Exception):
+    pass
