@@ -1,4 +1,4 @@
-2.2.3 (unreleased)
+2.2.3 (2019-04-04)
 ------------------
 
 - Do not retry tasks for objects that are no longer in the database
