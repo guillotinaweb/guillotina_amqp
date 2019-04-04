@@ -17,6 +17,7 @@ from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from multidict import CIMultiDict
@@ -167,6 +168,10 @@ class Job:
                 logger.warning('Error commiting job', exc_info=True)
                 raise
             return result
+        except ObjectNotFoundException:
+            # Tried to run a function on an object that no longer
+            # exist in the database
+            return None
         except Exception:
             try:
                 await abort(request)

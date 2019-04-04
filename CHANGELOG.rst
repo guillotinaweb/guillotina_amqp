@@ -1,8 +1,8 @@
 2.2.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Do not retry tasks for objects that are no longer in the database
+  [lferran]
 
 2.2.2 (2019-03-08)
 ------------------
