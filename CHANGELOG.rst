@@ -1,4 +1,4 @@
-2.2.6 (unreleased)
+2.2.6 (2019-04-16)
 ------------------
 
 - Fix releasing task
