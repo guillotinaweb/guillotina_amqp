@@ -1,7 +1,9 @@
 2.2.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix issue where tasks would never be scheduled or consuming
+  would be extremely slow
+  [vangheem]
 
 
 2.2.4 (2019-04-16)

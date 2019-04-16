@@ -29,6 +29,7 @@ import aiotask_context
 import asyncio
 import inspect
 import yarl
+import time
 
 
 logger = glogging.getLogger('guillotina_amqp.job')
@@ -85,6 +86,7 @@ class Job:
 
         self.task = None
         self._state_manager = None
+        self._started = time.time()
 
     @property
     def state_manager(self):
@@ -173,11 +175,12 @@ class Job:
             # exist in the database
             return None
         except Exception:
+            raise
+        finally:
             try:
                 await abort(request)
             except Exception:
                 logger.warning('Error aborting job', exc_info=True)
-            raise
 
     async def __run(self, request):
         result = None

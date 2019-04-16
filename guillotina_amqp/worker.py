@@ -41,7 +41,6 @@ class Worker:
         self.request = request
         self.loop = loop
         self._running = []
-        self._done = []
         self._max_running = max_size or app_settings['amqp'].get('max_running_tasks', 5)
         self._closing = False
         self._state_manager = None
@@ -122,7 +121,6 @@ class Worker:
         task.add_done_callback(self._task_done_callback)
 
     async def _handle_canceled(self, task):
-        self._running.remove(task)
         task_id = task._job.data['task_id']
         # ACK to main queue to it is not scheduled anymore
         await task._job.channel.basic_client_ack(
@@ -191,7 +189,6 @@ class Worker:
     async def _task_callback(self, task):
         """This is called when a job finishes execution"""
         task_id = task._job.data['task_id']
-        self._done.append(task)
         self.total_run += 1
 
         try:
@@ -214,6 +211,10 @@ class Worker:
         else:
             # If task ran successfully, ACK main queue and finish
             return await self._handle_successful(task)
+        finally:
+            if task in self._running:
+                self._running.remove(task)
+            self.state_manager.release(task_id)
 
     async def stop(self):
         self.cancel()
@@ -319,8 +320,9 @@ class Worker:
         """
         Cancels the worker (i.e: all its running tasks)
         """
-        for task in self._running:
+        for task in self._running[:]:
             task.cancel()
+            self._running.remove(task)
 
     async def join(self):
         """
@@ -340,15 +342,8 @@ class Worker:
                 _id = task._job.data['task_id']
                 ts = TaskState(_id)
 
-                if task in self._done:
-                    # Clean-up completed running task list and release
-                    # lock in StateManager
-                    self._running.remove(task)
-                    await ts.release()
-
-                else:
-                    # Still working on the job: refresh task lock
-                    await ts.refresh_lock()
+                # Still working on the job: refresh task lock
+                await ts.refresh_lock()
 
             # Cancel local tasks that have been cancelled in global
             # state manager
@@ -358,4 +353,5 @@ class Worker:
                     if _id == val:
                         logger.warning(f"Canceling task {_id}")
                         task.cancel()
+                        self._running.remove(task)
                         await self._state_manager.clean_canceled(_id)
