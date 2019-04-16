@@ -1,8 +1,8 @@
 2.2.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Fix spamming when waiting for tasks to finish
+  [vangheem]
 
 2.2.3 (2019-04-04)
 ------------------
