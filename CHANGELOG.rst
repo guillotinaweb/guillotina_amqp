@@ -1,4 +1,4 @@
-2.2.4 (unreleased)
+2.2.4 (2019-04-16)
 ------------------
 
 - Fix spamming when waiting for tasks to finish
