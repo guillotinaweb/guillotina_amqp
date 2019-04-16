@@ -31,7 +31,6 @@ setup(
             'pytest>=4.1.1',
             'docker',
             'backoff',
-            'psycopg2',
             'psycopg2-binary',
             'pytest-asyncio>=0.8.0',
             'pytest-cov>=2.6.1',

@@ -22,6 +22,7 @@ async def test_add_task(dummy_request, rabbitmq_container,
     aiotask_context.set('request', dummy_request)
     ts = await add_task(_test_func, 1, 2)
     await ts.join(0.02)
+    await asyncio.sleep(1)
 
     state = await ts.get_state()
     assert state['status'] == TaskStatus.FINISHED

@@ -214,7 +214,7 @@ class Worker:
         finally:
             if task in self._running:
                 self._running.remove(task)
-            self.state_manager.release(task_id)
+            await self.state_manager.release(task_id)
 
     async def stop(self):
         self.cancel()

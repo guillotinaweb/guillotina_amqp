@@ -1,7 +1,8 @@
 2.2.6 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix releasing task
+  [vangheem]
 
 
 2.2.5 (2019-04-16)
