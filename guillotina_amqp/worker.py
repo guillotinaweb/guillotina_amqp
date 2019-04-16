@@ -30,7 +30,7 @@ class Worker:
     results.
 
     """
-    sleep_interval = 0.05
+    sleep_interval = 0.1
     last_activity = time.time()
     update_status_interval = 20
     total_run = 0
@@ -87,7 +87,7 @@ class Worker:
 
         # Block if we reached maximum number of running tasks
         while len(self._running) >= self._max_running:
-            logger.warning(f'Max running tasks reached: {self._max_running}')
+            logger.info(f'Max running tasks reached: {self._max_running}')
             await asyncio.sleep(self.sleep_interval)
             self.last_activity = time.time()
 
