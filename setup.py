@@ -9,7 +9,7 @@ except IOError:
 
 setup(
     name='guillotina_amqp',
-    version='2.2.6',
+    version='2.2.7.dev0',
     description='Integrate amqp into guillotina',
     long_description=README,
     install_requires=[
