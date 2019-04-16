@@ -1,4 +1,4 @@
-2.2.5 (unreleased)
+2.2.5 (2019-04-16)
 ------------------
 
 - Fix issue where tasks would never be scheduled or consuming
