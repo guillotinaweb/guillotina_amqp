@@ -232,7 +232,7 @@ class BeaconsManager:
     async def handle_beacon(self, channel, body, envelope, properties):
         logger.debug(f'handle_beacon {body} {channel}')
 
-        if self.autokill_handler:
+        if not self._stopped and self.autokill_handler:
             # ACK beacon queue
             await self.channel.basic_client_ack(
                 delivery_tag=envelope.delivery_tag,
@@ -246,6 +246,9 @@ class BeaconsManager:
 
     def stop(self):
         self._stopped = True
+        if self.autokill_handler:
+            self.autokill_handler.cancel()
+            self.autokill_handler = None
 
 
 async def connect(**kwargs):
