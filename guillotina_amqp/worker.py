@@ -41,7 +41,7 @@ class Worker:
         self.request = request
         self.loop = loop
         self._running = []
-        self._max_running = max_size or app_settings['amqp'].get('max_running_tasks', 5)
+        self._max_running = int(max_size or app_settings['amqp'].get('max_running_tasks', 5))
         self._closing = False
         self._state_manager = None
         self._state_ttl = int(app_settings['amqp']['state_ttl'])

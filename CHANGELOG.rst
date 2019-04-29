@@ -1,7 +1,8 @@
 2.2.7 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Make sure `max_running_tasks` is always an integer
+  [vangheem]
 
 
 2.2.6 (2019-04-16)
