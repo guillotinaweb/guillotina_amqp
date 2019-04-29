@@ -1,4 +1,4 @@
-2.2.7 (unreleased)
+2.2.7 (2019-04-29)
 ------------------
 
 - Make sure `max_running_tasks` is always an integer
