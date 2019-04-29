@@ -50,7 +50,6 @@ test_logger_settings = {
             "level": "DEBUG",
             "handlers": ["console"]
         },
-
     }
 }
 
