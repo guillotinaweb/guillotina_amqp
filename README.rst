@@ -133,3 +133,11 @@ On the background of every connection, we publish a beacon message to
 the beacon-delay queue, which is expected to be read again after a
 certain TTL from the beacon queue. If a beacon message is not received
 after 3 times the TTL, the worker will exit.
+
+
+API
+---
+
+- `GET @amqp-tasks` - get list of tasks
+- `GET @amqp-tasks/{task_id}` - get task info
+- `DELETE @amqp-tasks/{task_id}` - delete task

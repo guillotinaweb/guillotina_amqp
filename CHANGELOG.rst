@@ -1,7 +1,14 @@
-2.2.8 (unreleased)
+3.0.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Rename `DELETE @amqp-cancel/{task_id}` to `DELETE @amqp-tasks/{task_id}`
+  [vangheem]
+
+- Rename `GET @amqp-info/{task_id}` to `GET @amqp-tasks/{task_id}`
+  [vangheem]
+
+- API methods should be constrained to only work against a container
+  [vangheem]
 
 
 2.2.7 (2019-04-29)
