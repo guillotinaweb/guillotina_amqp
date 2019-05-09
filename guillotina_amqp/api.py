@@ -2,11 +2,11 @@ from .exceptions import TaskNotFoundException
 from .state import get_state_manager
 from .state import TaskState
 from guillotina import configure
-from guillotina.interfaces import IContainer
+from guillotina.interfaces import IApplication
 from guillotina.response import HTTPNotFound
 
 
-@configure.service(method='GET', name='@amqp-tasks', context=IContainer,
+@configure.service(method='GET', name='@amqp-tasks', context=IApplication,
                    permission='guillotina.ManageAMQP',
                    summary='Returns the list of running tasks')
 async def list_tasks(context, request):
@@ -18,7 +18,7 @@ async def list_tasks(context, request):
 
 
 @configure.service(
-    method='GET', name='@amqp-tasks/{task_id}', context=IContainer,
+    method='GET', name='@amqp-tasks/{task_id}', context=IApplication,
     permission='guillotina.ManageAMQP',
     summary='Shows the info of a given task id')
 async def info_task(context, request):
@@ -32,7 +32,7 @@ async def info_task(context, request):
 
 
 @configure.service(
-    method='DELETE', name='@amqp-tasks/{task_id}', context=IContainer,
+    method='DELETE', name='@amqp-tasks/{task_id}', context=IApplication,
     permission='guillotina.ManageAMQP',
     summary='Cancel a specific task by id')
 async def cancel_task(context, request):

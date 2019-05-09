@@ -138,6 +138,6 @@ after 3 times the TTL, the worker will exit.
 API
 ---
 
-- `GET @amqp-tasks` - get list of tasks
-- `GET @amqp-tasks/{task_id}` - get task info
-- `DELETE @amqp-tasks/{task_id}` - delete task
+- `GET /@amqp-tasks` - get list of tasks
+- `GET /@amqp-tasks/{task_id}` - get task info
+- `DELETE /@amqp-tasks/{task_id}` - delete task
