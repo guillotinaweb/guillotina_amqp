@@ -24,9 +24,7 @@ async def list_tasks(context, request):
 async def info_task(context, request):
     try:
         task = TaskState(request.matchdict['task_id'])
-        state = await task.get_state()
-        if state.get('job_data', {}).get('container_id') == context.id:
-            return state
+        return await task.get_state()
     except TaskNotFoundException:
         raise HTTPNotFound(content={
             'reason': 'Task not found'
@@ -40,12 +38,8 @@ async def info_task(context, request):
 async def cancel_task(context, request):
     task = TaskState(request.matchdict['task_id'])
     try:
-        state = await task.get_state()
-        if state.get('job_data', {}).get('container_id') == context.id:
-            return await task.cancel()
+        return await task.cancel()
     except TaskNotFoundException:
-        pass
-
-    raise HTTPNotFound(content={
-        'reason': 'Task not found'
-    })
+        raise HTTPNotFound(content={
+            'reason': 'Task not found'
+        })
