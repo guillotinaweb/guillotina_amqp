@@ -65,12 +65,16 @@ async def add_task(func, *args, _request=None, _retries=3, **kwargs):
     if getattr(_request, 'container', None):
         req_data['container_url'] = IAbsoluteURL(_request.container, _request)()
 
+    if _task_id is None:
+        task_id = str(uuid.uuid4())
+    else:
+        task_id = _task_id
+
     retries = 0
     while True:
         # Get the rabbitmq connection
         channel, transport, protocol = await amqp.get_connection()
         try:
-            task_id = str(uuid.uuid4())
             state = TaskState(task_id)
             dotted_name = get_dotted_name(func)
             logger.info(f'Scheduling task: {task_id}: {dotted_name}')
