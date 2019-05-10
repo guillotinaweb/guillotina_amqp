@@ -16,7 +16,7 @@ class TaskDefinition:
         self.func = func
         self.retries = retries
 
-    async def __call__(self, *args, _request=None, _task_id=None, **kwargs):
+    async def __call__(self, *args, _request=None, **kwargs):
         return await add_task(
             self.func, _request=_request, _retries=self.retries, *args, **kwargs)
 
