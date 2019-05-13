@@ -144,7 +144,7 @@ class Job:
             if self.data.get('container_id'):
                 container = await context.async_get(self.data['container_id'])
                 if container is None:
-                    raise Exception('Could not find container')
+                    raise Exception(f'Could not find container: {self.data["container_id"]}')
                 request._container_id = container.id
                 request.container = container
                 annotations_container = IAnnotations(container)
@@ -221,6 +221,7 @@ class Job:
         # caller
         #
 
+        aiotask_context.set('amqp_job', self)
         # Function is an async generator
         if inspect.isasyncgenfunction(func):
             async for status in func(*self.data['args'], **self.data['kwargs']):
@@ -256,5 +257,6 @@ class Job:
         else:
             # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
+        aiotask_context.set('amqp_job', None)
 
         return result

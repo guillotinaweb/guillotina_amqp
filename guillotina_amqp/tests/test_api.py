@@ -6,6 +6,8 @@ import aiotask_context
 
 async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
     aiotask_context.set('request', dummy_request)
+    dummy_request._container_id = 'guillotina'
+    dummy_request._db_id = 'db'
 
     # Add some tasks first
     t1 = await add_task(_test_func, 1, 2)
@@ -23,24 +25,28 @@ async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
 
 async def test_info_task(container_requester, dummy_request):
     aiotask_context.set('request', dummy_request)
+    dummy_request._container_id = 'guillotina'
+    dummy_request._db_id = 'db'
 
     # Add some tasks first
     t1 = await add_task(_test_func, 1, 2)
 
     async with container_requester as requester:
-        # Check error status if task_id not specified
-        resp, status = await requester('GET', '/db/guillotina/@amqp-info')
-        assert status == 404
 
         # Check returns correctly if existing task_id
         resp, status = await requester(
-            'GET', f'/db/guillotina/@amqp-info/{t1.task_id}')
+            'GET', f'/db/guillotina/@amqp-tasks/{t1.task_id}')
         assert status == 200
         assert resp['status'] == 'scheduled'
 
         # Check returns 404 if task_id is not known
         resp, status = await requester(
-            'GET', '/db/guillotina/@amqp-info/foo')
+            'GET', '/db/guillotina/@amqp-tasks/foo')
+        assert status == 404
+        assert resp['reason'] == 'Task not found'
+
+        resp, status = await requester(
+            'GET', '/db/guillotina/@amqp-tasks/task:db-guillotina-foobar')
         assert status == 404
         assert resp['reason'] == 'Task not found'
 
@@ -49,31 +55,28 @@ async def test_info_task(container_requester, dummy_request):
 
 async def test_cancel_task(container_requester, dummy_request):
     aiotask_context.set('request', dummy_request)
+    dummy_request._container_id = 'guillotina'
+    dummy_request._db_id = 'db'
 
     # Add some tasks first
     t1 = await add_task(_test_func, 1, 2)
 
     async with container_requester as requester:
-        # Check error status if task_id not specified
-        resp, status = await requester(
-            'DELETE', '/db/guillotina/@amqp-cancel')
-        assert status == 404
-
         # Check returns correctly if existing task_id
         resp, status = await requester(
-            'DELETE', f'/db/guillotina/@amqp-cancel/{t1.task_id}')
+            'DELETE', f'/db/guillotina/@amqp-tasks/{t1.task_id}')
         assert status == 200
         assert resp is True
 
         # Check returns correctly if already canceled task_id
         resp, status = await requester(
-            'DELETE', f'/db/guillotina/@amqp-cancel/{t1.task_id}')
+            'DELETE', f'/db/guillotina/@amqp-tasks/{t1.task_id}')
         assert status == 200
         assert resp is True
 
         # Check returns 404 is unknown task
         resp, status = await requester(
-            'DELETE', '/db/guillotina/@amqp-cancel/foo')
+            'DELETE', '/db/guillotina/@amqp-tasks/foo')
         assert status == 404
 
     aiotask_context.set('request', None)
