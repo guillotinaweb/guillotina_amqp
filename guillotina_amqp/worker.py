@@ -9,6 +9,7 @@ from guillotina_amqp.state import update_task_scheduled
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_canceled
 from guillotina_amqp.state import TaskState
+from guillotina_amqp.state import TaskStatus
 from guillotina_amqp.utils import metric_measure
 from guillotina import glogging
 
@@ -18,7 +19,7 @@ import time
 
 try:
     from prometheus_client import Gauge
-    from prometheus_client import Hisogram
+    from prometheus_client import Histogram
 
     amqp_running_jobs = Gauge(
         'amqp_running_jobs',
