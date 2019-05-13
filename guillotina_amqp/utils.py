@@ -34,13 +34,13 @@ async def cancel_task(task_id):
     return success
 
 
-async def get_task_id_prefix(request):
+def get_task_id_prefix(request):
     return 'task://{}/{}/'.format(
         request._db_id,
         request.container.id)
 
 
-async def generate_task_id(request):
+def generate_task_id(request):
     if hasattr(request, 'container'):
         return '{}{}'.format(
             get_task_id_prefix(request),
