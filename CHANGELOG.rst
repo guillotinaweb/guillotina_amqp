@@ -1,4 +1,4 @@
-3.0.0 (unreleased)
+3.0.0 (2019-05-13)
 ------------------
 
 - Rename `DELETE @amqp-cancel/{task_id}` to `DELETE @amqp-tasks/{task_id}`
