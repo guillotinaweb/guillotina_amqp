@@ -35,13 +35,13 @@ async def cancel_task(task_id):
 
 
 def get_task_id_prefix(request):
-    return 'task://{}/{}/'.format(
+    return 'task:{}-{}-'.format(
         request._db_id,
-        request.container.id)
+        request._container_id)
 
 
 def generate_task_id(request):
-    if hasattr(request, 'container'):
+    if hasattr(request, '_container_id'):
         return '{}{}'.format(
             get_task_id_prefix(request),
             str(uuid.uuid4())

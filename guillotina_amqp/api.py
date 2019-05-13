@@ -15,7 +15,7 @@ async def list_tasks(context, request):
     ret = []
     task_prefix = get_task_id_prefix(request)
     async for el in mngr.list():
-        if not el.startswith(task_prefix):
+        if el.startswith(task_prefix):
             ret.append(el)
     return ret
 
@@ -27,14 +27,14 @@ async def list_tasks(context, request):
 async def info_task(context, request):
     task_prefix = get_task_id_prefix(request)
     if not request.matchdict['task_id'].startswith(task_prefix):
-        raise HTTPNotFound(content={
+        return HTTPNotFound(content={
             'reason': 'Task not found'
         })
     try:
         task = TaskState(request.matchdict['task_id'])
         return await task.get_state()
     except TaskNotFoundException:
-        raise HTTPNotFound(content={
+        return HTTPNotFound(content={
             'reason': 'Task not found'
         })
 
@@ -46,13 +46,13 @@ async def info_task(context, request):
 async def cancel_task(context, request):
     task_prefix = get_task_id_prefix(request)
     if not request.matchdict['task_id'].startswith(task_prefix):
-        raise HTTPNotFound(content={
+        return HTTPNotFound(content={
             'reason': 'Task not found'
         })
     task = TaskState(request.matchdict['task_id'])
     try:
         return await task.cancel()
     except TaskNotFoundException:
-        raise HTTPNotFound(content={
+        return HTTPNotFound(content={
             'reason': 'Task not found'
         })
