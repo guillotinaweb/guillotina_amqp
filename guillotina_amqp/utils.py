@@ -34,6 +34,21 @@ async def cancel_task(task_id):
     return success
 
 
+async def get_task_id_prefix(request):
+    return 'task://{}/{}/'.format(
+        request._db_id,
+        request.container.id)
+
+
+async def generate_task_id(request):
+    if hasattr(request, 'container'):
+        return '{}{}'.format(
+            get_task_id_prefix(request),
+            str(uuid.uuid4())
+        )
+    return str(uuid.uuid4())
+
+
 async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwargs):
     """Given a function and its arguments, it adds it as a task to be ran
     by workers.
@@ -66,7 +81,7 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         req_data['container_url'] = IAbsoluteURL(_request.container, _request)()
 
     if _task_id is None:
-        task_id = str(uuid.uuid4())
+        task_id = generate_task_id(_request)
     else:
         task_id = _task_id
 
