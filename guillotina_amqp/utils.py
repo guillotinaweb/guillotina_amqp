@@ -200,3 +200,16 @@ class TimeoutLock(object):
         # Overwrite old lock and acquire with new timeout
         self._lock = asyncio.Lock()
         return await self.acquire(ttl)
+
+
+def metric_measure(metric, value, labels=None):
+    if not metric:
+        # Don't measure if prometheus client is not installed
+        return
+
+    try:
+        labels = labels or {}
+        metric.labels(**labels).observe(value)
+    except Exception:
+        logger.error(f'Failed to measure metric', exc_info=True)
+        pass

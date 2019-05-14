@@ -1,7 +1,7 @@
 3.0.3 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Add prometheus metrics [lferran]
 
 
 3.0.2 (2019-05-14)
