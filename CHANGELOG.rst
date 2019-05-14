@@ -1,4 +1,4 @@
-3.0.2 (unreleased)
+3.0.2 (2019-05-14)
 ------------------
 
 - Provide b/w compatible `@amqp-info` and `@amqp-cancel` endpoints. Marked for complete
