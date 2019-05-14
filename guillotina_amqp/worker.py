@@ -29,7 +29,7 @@ try:
     amqp_job_duration = Histogram(
         'amqp_job_duration',
         'AMQP job duration histogram',
-        ['dotted_name', 'final_status'])
+        ['dotted_name', 'final_status', 'container_id'])
 
 except ImportError:
     # Do not record metrics if prometheus_client not installed
@@ -218,6 +218,7 @@ class Worker:
         labels = {
             'dotted_name': job.data['func'],
             'final_status': final_status,
+            'container_id': job.data.get('container_id'),
         }
         duration = time.time() - job._started
         metric_measure(amqp_job_duration, duration, labels)
