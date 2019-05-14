@@ -1,4 +1,4 @@
-3.0.4 (unreleased)
+3.0.4 (2019-05-14)
 ------------------
 
 - Add container id label in metric [lferran]
