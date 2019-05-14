@@ -1,15 +1,10 @@
 3.0.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
-
-3.0.1 (2019-05-13)
-------------------
-
 - Provide b/w compatible `@amqp-info` and `@amqp-cancel` endpoints. Marked for complete
   removal in version 4.
   [vangheem]
+
 
 3.0.0 (2019-05-13)
 ------------------
