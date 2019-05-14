@@ -105,7 +105,7 @@ class Worker:
         await update_task_scheduled(self.state_manager, task_id, eventlog=[])
         logger.info(f'Received task: {task_id}: {dotted_name}')
 
-        self.measure_running_jobs(self._running)
+        self.measure_running_jobs(len(self._running))
 
         # Block if we reached maximum number of running tasks
         while len(self._running) >= self._max_running:

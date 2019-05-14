@@ -209,7 +209,14 @@ def metric_measure(metric, value, labels=None):
 
     try:
         labels = labels or {}
-        metric.labels(**labels).observe(value)
+        try:
+            labeled = metric.labels(**labels)
+            try:
+                labeled.observe(value)
+            except AttributeError:
+                labeled.set(value)
+        except AttributeError:
+            metric.set(value)
     except Exception:
         logger.error(f'Failed to measure metric', exc_info=True)
         pass

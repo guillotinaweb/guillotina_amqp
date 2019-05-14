@@ -1,7 +1,7 @@
 3.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix metrics
 
 
 3.0.4 (2019-05-14)
