@@ -1,6 +1,8 @@
 from guillotina.commands import Command
+from guillotina.commands.server import ServerCommand
 from guillotina_amqp.worker import Worker
 from guillotina import glogging
+from aiohttp import web
 
 import aiotask_context
 import asyncio
@@ -61,14 +63,28 @@ class WorkerCommand(Command):
     def get_parser(self):
         parser = super().get_parser()
         parser.add_argument('--auto-kill-timeout',
-                            help='How long of no activity before we automatically kill process',
+                            help='How long of no activity before we automatically kill process (in minutes)',
                             type=int, default=-1)
         parser.add_argument('--max-running-tasks',
                             help='Max simultaneous running tasks',
                             type=int, default=None)
+        parser.add_argument('--metrics-server', help='Launch an API server to expose metrics',
+                            default=False, action='store_true')
         return parser
 
-    async def run(self, arguments, settings, app):
+    def run(self, arguments, settings, app):
+        loop = self.get_loop()
+        fut = loop.run_in_executor(None, self.run_worker, arguments, settings, app)
+        asyncio.ensure_future(fut)
+
+        if arguments.metrics_server:
+            try:
+                web.run_app(app, port=8080)
+            except asyncio.CancelledError:
+                # server shut down, we're good here.
+                pass
+
+    async def run_worker(self, arguments, settings, app):
         aiotask_context.set('request', self.request)
 
         # Run the actual worker in the same loop
