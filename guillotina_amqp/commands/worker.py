@@ -1,14 +1,14 @@
-from guillotina.commands import Command
+# from guillotina.commands import Command
 from guillotina.commands.server import ServerCommand
 from guillotina_amqp.worker import Worker
 from guillotina import glogging
-from aiohttp import web
+# from aiohttp import web
 
 import aiotask_context
 import asyncio
 import threading
 import os
-import time
+# import time
 
 
 logger = glogging.getLogger('guillotina_amqp')
