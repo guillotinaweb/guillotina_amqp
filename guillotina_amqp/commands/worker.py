@@ -72,10 +72,12 @@ class WorkerCommand(Command):
                             default=False, action='store_true')
         return parser
 
-    def run(self, arguments, settings, app):
+    async def run(self, arguments, settings, app):
         loop = self.get_loop()
-        fut = loop.run_in_executor(None, self.run_worker, arguments, settings, app)
-        asyncio.ensure_future(fut)
+        asyncio.ensure_future(
+            self.run_worker(arguments, settings, app, loop=loop),
+            loop=loop,
+        )
 
         if arguments.metrics_server:
             try:
@@ -84,18 +86,24 @@ class WorkerCommand(Command):
                 # server shut down, we're good here.
                 pass
 
-    async def run_worker(self, arguments, settings, app):
+        while True:
+            # make this run forever...
+            await asyncio.sleep(999999)
+
+    async def run_worker(self, arguments, settings, app, loop=None):
         aiotask_context.set('request', self.request)
 
+        loop = loop or self.get_loop()
+
         # Run the actual worker in the same loop
-        worker = Worker(self.request, self.get_loop(),
+        worker = Worker(self.request, loop,
                         arguments.max_running_tasks)
         await worker.start()
 
         timeout = arguments.auto_kill_timeout
         if timeout > 0:
             # We need to run this outside the main loop and the current thread
-            thread = EventLoopWatchdog(self.get_loop(), timeout)
+            thread = EventLoopWatchdog(loop, timeout)
             thread.start()
 
         while True:
