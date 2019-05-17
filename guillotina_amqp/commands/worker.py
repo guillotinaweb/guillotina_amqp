@@ -8,6 +8,7 @@ import aiotask_context
 import asyncio
 import threading
 import os
+import time
 
 
 logger = glogging.getLogger('guillotina_amqp')
@@ -56,7 +57,7 @@ class EventLoopWatchdog(threading.Thread):
         threading.Timer(self.timeout/4, self.check).start()
 
 
-class WorkerCommand(Command):
+class WorkerCommand(ServerCommand):
     """Guillotina command to start a worker"""
     description = 'AMQP worker'
 
@@ -72,23 +73,18 @@ class WorkerCommand(Command):
                             default=False, action='store_true')
         return parser
 
-    async def run(self, arguments, settings, app):
+    def run(self, arguments, settings, app):
         loop = self.get_loop()
         asyncio.ensure_future(
             self.run_worker(arguments, settings, app, loop=loop),
-            loop=loop,
-        )
+            loop=loop)
 
         if arguments.metrics_server:
-            try:
-                web.run_app(app, port=8080)
-            except asyncio.CancelledError:
-                # server shut down, we're good here.
+            super().run(arguments, settings, app)
+        else:
+            while True:
+                # Try something that doesn't block the event loop here...
                 pass
-
-        while True:
-            # make this run forever...
-            await asyncio.sleep(999999)
 
     async def run_worker(self, arguments, settings, app, loop=None):
         aiotask_context.set('request', self.request)
