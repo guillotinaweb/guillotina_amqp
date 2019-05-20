@@ -1,4 +1,4 @@
-3.0.6 (unreleased)
+3.1.0 (unreleased)
 ------------------
 
 - Optionally serve /metrics for prometheus metrics
