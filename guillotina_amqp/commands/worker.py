@@ -1,4 +1,5 @@
 # from guillotina.commands import Command
+from aiohttp import web
 from guillotina.commands.server import ServerCommand
 from guillotina_amqp.worker import Worker
 from guillotina import glogging
@@ -10,8 +11,18 @@ import threading
 import os
 # import time
 
+try:
+    import prometheus_client
+except ImportError:
+    prometheus_client = None
+
 
 logger = glogging.getLogger('guillotina_amqp')
+
+
+async def prometheus_view(request):
+    output = prometheus_client.exposition.generate_latest()
+    return web.Response(text=output.decode('utf8'))
 
 
 class EventLoopWatchdog(threading.Thread):
@@ -75,16 +86,16 @@ class WorkerCommand(ServerCommand):
 
     def run(self, arguments, settings, app):
         loop = self.get_loop()
-        asyncio.ensure_future(
-            self.run_worker(arguments, settings, app, loop=loop),
-            loop=loop)
-
         if arguments.metrics_server:
-            super().run(arguments, settings, app)
+            asyncio.ensure_future(
+                self.run_worker(arguments, settings, app, loop=loop),
+                loop=loop)
+            port = arguments.port or settings.get('address', settings.get('port'))
+            app = web.Application()
+            app.router.add_get('/metrics', prometheus_view)
+            web.run_app(app, port=port or 8080)
         else:
-            while True:
-                # Try something that doesn't block the event loop here...
-                pass
+            loop.run_until_complete(self.run_worker(arguments, settings, app))
 
     async def run_worker(self, arguments, settings, app, loop=None):
         aiotask_context.set('request', self.request)
