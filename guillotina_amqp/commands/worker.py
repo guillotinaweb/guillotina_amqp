@@ -21,6 +21,8 @@ logger = glogging.getLogger('guillotina_amqp')
 
 
 async def prometheus_view(request):
+    if prometheus_client is None:
+        return None
     output = prometheus_client.exposition.generate_latest()
     return web.Response(text=output.decode('utf8'))
 
