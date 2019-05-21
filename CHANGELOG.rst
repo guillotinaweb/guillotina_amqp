@@ -1,4 +1,4 @@
-3.1.0 (unreleased)
+3.0.6 (2019-05-21)
 ------------------
 
 - Optionally serve /metrics for prometheus metrics
