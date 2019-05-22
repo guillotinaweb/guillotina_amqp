@@ -1,4 +1,4 @@
-3.1.1 (unreleased)
+3.1.1 (2019-05-22)
 ------------------
 
 - Include actual callable in metrics labels
