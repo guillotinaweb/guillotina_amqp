@@ -216,7 +216,7 @@ class Worker:
     @staticmethod
     def measure_job_duration(job, final_status):
         labels = {
-            'dotted_name': job.data['func'],
+            'dotted_name': job.function_name,
             'final_status': final_status,
             'container_id': job.data.get('container_id'),
         }

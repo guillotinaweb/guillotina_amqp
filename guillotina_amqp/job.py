@@ -14,12 +14,17 @@ from guillotina.security.policy import Interaction
 from guillotina.transactions import abort
 from guillotina.transactions import commit
 from guillotina.utils import import_class
+from guillotina.utils import get_dotted_name
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
 from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
+from guillotina_amqp.utils import _run_object_task
+from guillotina_amqp.utils import _yield_object_task
+
+
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
@@ -182,6 +187,31 @@ class Job:
             except Exception:
                 logger.warning('Error aborting job', exc_info=True)
 
+    def get_function_to_run(self):
+        func = resolve_dotted_name(self.data['func'])
+        if ITaskDefinition.providedBy(func):
+            func = func.func
+        if hasattr(func, '__real_func__'):
+            # from decorators
+            func = func.__real_func__
+        return func
+
+    @property
+    def function_name(self):
+        """
+        """
+        func = self.get_function_to_run()
+        dotted_name = get_dotted_name(func)
+        if func in [_run_object_task, _yield_object_task, ]:
+            # Remove guillotina_amqp.utils part
+            dotted_name = dotted_name.lstrip('guillotina_amqp.utils')
+            # Get actuall callable that is passed as the first parameter
+            # of func
+            _callable = self.data.get('args', [''])[0]
+            dotted_name += f'/{_callable}'
+
+        return dotted_name
+
     async def __run(self, request):
         result = None
         task_id = self.data['task_id']
@@ -196,12 +226,7 @@ class Job:
             login_user(request, req_data['user'])
 
         # Parse the function to run
-        func = resolve_dotted_name(self.data['func'])
-        if ITaskDefinition.providedBy(func):
-            func = func.func
-        if hasattr(func, '__real_func__'):
-            # from decorators
-            func = func.__real_func__
+        func = self.get_function_to_run()
 
         #
         # Run the task coroutine
