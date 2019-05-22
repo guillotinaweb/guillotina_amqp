@@ -10,6 +10,11 @@ from guillotina_amqp.tests.utils import _test_asyncgen
 from guillotina_amqp.tests.utils import _test_asyncgen_invalid
 from guillotina_amqp.tests.utils import _test_asyncgen_doubley
 from guillotina_amqp.tests.utils import _decorator_test_func
+from guillotina_amqp.job import Job
+from guillotina_amqp.utils import _run_object_task
+from guillotina_amqp.utils import _yield_object_task
+from guillotina.utils import get_dotted_name
+
 
 import aiotask_context
 import asyncio
@@ -21,6 +26,7 @@ async def test_add_task(dummy_request, rabbitmq_container,
                         configured_state_manager):
     aiotask_context.set('request', dummy_request)
     ts = await add_task(_test_func, 1, 2)
+
     await ts.join(0.02)
     await asyncio.sleep(1)
 
@@ -241,3 +247,26 @@ async def test_worker_beacons_process_exit(dummy_request,
     await mgr.autokill_event.wait()
 
     aiotask_context.set('request', None)
+
+
+def test_job_function_name():
+    data = {
+        'func': get_dotted_name(_run_object_task),
+        'args': ['my.func.foobar'],
+    }
+    job = Job(None, data, None, None)
+    assert job.function_name == 'run_object_task/my.func.foobar'
+
+    data = {
+        'func': get_dotted_name(_yield_object_task),
+        'args': ['my.func.foobar'],
+    }
+    job = Job(None, data, None, None)
+    assert job.function_name == 'yield_object_task/my.func.foobar'
+
+    data = {
+        'func': get_dotted_name(_test_func),
+        'args': [],
+    }
+    job = Job(None, data, None, None)
+    assert job.function_name == 'guillotina_amqp.tests.utils._test_func'
