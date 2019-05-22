@@ -215,8 +215,17 @@ class Worker:
 
     @staticmethod
     def measure_job_duration(job, final_status):
+        dotted_name = job.data['func']
+        # Remove guillotina_amqp.utils part
+        dotted_name = dotted_name.split('.')[-1]
+
+        # Get actuall callable that is passed as the first parameter
+        # of func
+        real_func = job.data.get('args', [''])[0]
+        dotted_name += f'/{real_func}'
+
         labels = {
-            'dotted_name': job.data['func'],
+            'dotted_name': dotted_name,
             'final_status': final_status,
             'container_id': job.data.get('container_id'),
         }

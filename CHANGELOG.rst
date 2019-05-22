@@ -1,7 +1,7 @@
 3.1.1 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Include actual callable in metrics labels
 
 
 3.1.0 (2019-05-21)
