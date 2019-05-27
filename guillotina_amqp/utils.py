@@ -49,9 +49,12 @@ def generate_task_id(request):
     return str(uuid.uuid4())
 
 
-async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwargs):
+async def add_task(func, *args, _request=None, _retries=3,
+                   _task_id=None, unique_key=None, **kwargs):
     """Given a function and its arguments, it adds it as a task to be ran
     by workers.
+
+    :param unique_key: to bind tasks to unique key ids
     """
     # Get the request and prepare request data
     if _request is None:
@@ -85,6 +88,15 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
     else:
         task_id = _task_id
 
+    state_manager = get_state_manager()
+    if unique_key:
+        # Check that there is no other already running task with the
+        # same unique key
+        ts = await state_manager.get_task_for_unique_key(
+            unique_key)
+        if ts:
+            return ts
+
     retries = 0
     while True:
         # Get the rabbitmq connection
@@ -100,7 +112,8 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
                 'db_id': getattr(_request, '_db_id', None),
                 'container_id': getattr(_request, '_container_id', None),
                 'req_data': req_data,
-                'task_id': task_id
+                'task_id': task_id,
+                'unique_key': unique_key,
             })
             # Publish task data on rabbitmq
             await channel.publish(
@@ -112,7 +125,6 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
                 }
             )
             # Update tasks's global state
-            state_manager = get_state_manager()
             await update_task_scheduled(state_manager, task_id,
                                         updated=time.time())
             logger.info(f'Scheduled task: {task_id}: {dotted_name}')

@@ -33,6 +33,13 @@ async def _test_long_func(duration):
     return 'done!'
 
 
+async def _test_wait_for(duration):
+    print('Started task')
+    await asyncio.sleep(duration)
+    print('Finished task')
+    return 'done!'
+
+
 @task
 async def _test_failing_func():
     raise Exception('Foobar')

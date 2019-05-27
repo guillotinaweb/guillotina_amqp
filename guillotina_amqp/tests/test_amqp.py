@@ -5,6 +5,7 @@ from guillotina_amqp.utils import add_task
 from guillotina_amqp.utils import cancel_task
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.tests.utils import _test_long_func
+from guillotina_amqp.tests.utils import _test_wait_for
 from guillotina_amqp.tests.utils import _test_failing_func
 from guillotina_amqp.tests.utils import _test_asyncgen
 from guillotina_amqp.tests.utils import _test_asyncgen_invalid
@@ -270,3 +271,35 @@ def test_job_function_name():
     }
     job = Job(None, data, None, None)
     assert job.function_name == 'guillotina_amqp.tests.utils._test_func'
+
+
+async def test_add_unique_task(dummy_request, rabbitmq_container,
+                               amqp_worker, amqp_channel,
+                               configured_state_manager):
+    aiotask_context.set('request', dummy_request)
+
+    # Start a task bound to a unique id
+    ts1 = await add_task(_test_wait_for, 5, unique_key='blah')
+
+    # Check that task is running
+    await asyncio.sleep(0.3)
+    state1 = await ts1.get_state()
+    assert state1['status'] == TaskStatus.RUNNING
+
+    # Try starting a new task bound to the same key
+    ts2 = await add_task(_test_func, 1, 2, unique_key='blah')
+
+    # Check that the same tid was returned
+    assert ts1.task_id == ts2.task_id
+
+    # Check that we are running the initial function
+    state2 = await ts2.get_state()
+    assert state2['status'] == TaskStatus.RUNNING
+    assert state2['func'] == state1['func']
+
+    # Check that last task was acknowledged even though new function
+    # didn't actually run
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    assert main_queue['message_count'] == 0
+
+    aiotask_context.set('request', None)

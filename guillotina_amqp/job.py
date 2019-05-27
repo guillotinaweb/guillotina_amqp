@@ -198,8 +198,6 @@ class Job:
 
     @property
     def function_name(self):
-        """
-        """
         func = self.get_function_to_run()
         dotted_name = get_dotted_name(func)
         if func in [_run_object_task, _yield_object_task, ]:
