@@ -102,6 +102,18 @@ class Worker:
         task_id = data['task_id']
         dotted_name = data['func']
 
+        unique_key = data.get('unique_key')
+        if unique_key:
+            try:
+                await self.state_manager.set_task_for_key(
+                    unique_key, task_id)
+            except UniqueKeyConflictException:
+                logger.warning(f'Unique key {unique_key} already in use')
+                # ACK task and finish
+                await channel.basic_client_ack(
+                    delivery_tag=envelope.delivery_tag)
+                return
+
         await update_task_scheduled(self.state_manager, task_id, eventlog=[])
         logger.info(f'Received task: {task_id}: {dotted_name}')
 
@@ -129,7 +141,10 @@ class Worker:
             await ts.acquire()
         except TaskAlreadyAcquired:
             logger.warning(f'Task {_id} is already running in another worker')
-            # TODO: ACK task
+            # ACK task and finish
+            await channel.basic_client_ack(
+                delivery_tag=envelope.delivery_tag)
+            return
 
         # Record job's data into global state
         await self.state_manager.update(task_id, {

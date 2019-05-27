@@ -48,6 +48,7 @@ class MemoryStateManager:
         self._locks = {}
         self._canceled = set()
         self.worker_id = uuid.uuid4().hex
+        self.unique_keys = {}
 
     def set_loop(self, loop=None):
         pass
@@ -137,6 +138,16 @@ class MemoryStateManager:
         self._locks = {}
         self._canceled = set()
 
+    async def set_task_for_key(self, key, task_id):
+        if self.unique_keys.get(key):
+            raise UniqueKeyConflictException()
+        self.unique_keys[key] = task_id
+
+    async def get_task_for_key(self, key):
+        return self.unique_keys.get(key, None)
+
+    async def clean_key(self, key):
+        return self.unique_keys.pop(key, None)
 
 _EMPTY = object()
 

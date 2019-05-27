@@ -77,6 +77,23 @@ class IStateManagerUtility(Interface):
         """
         raise NotImplementedError()
 
+    async def set_task_for_key(self, key, task_id):
+        """Binds a task id to a unique key. Should raise exception if there is
+        already a task associated to the key.
+        """
+        raise NotImplementedError()
+
+    async def clean_key(self, key):
+        """Unbinds the task id (if any) from the given unique key
+        """
+        raise NotImplementedError()
+
+    async def get_task_for_key(self, key):
+        """Returns the associated task id for a given unique key. Must return
+        None if no tasks are found for the key.
+        """
+        raise NotImplementedError()
+
 
 class ITaskDefinition(Interface):
     func = Attribute('actual function to run')

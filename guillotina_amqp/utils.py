@@ -89,13 +89,13 @@ async def add_task(func, *args, _request=None, _retries=3,
         task_id = _task_id
 
     state_manager = get_state_manager()
+
     if unique_key:
-        # Check that there is no other already running task with the
-        # same unique key
-        ts = await state_manager.get_task_for_unique_key(
-            unique_key)
-        if ts:
-            return ts
+        # Check whether unique key was already bound to a task
+        existing = await state_manager.get_task_for_key(unique_key)
+        if existing:
+            # Return task state from existing task
+            return TaskState(existing)
 
     retries = 0
     while True:
