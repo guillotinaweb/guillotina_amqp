@@ -5,6 +5,7 @@ from guillotina import glogging
 from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
 from guillotina.component import get_utility
+from guillotina.event import notify
 from guillotina.interfaces import ACTIVE_LAYERS_KEY
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAnnotations
@@ -18,6 +19,8 @@ from guillotina.utils import get_dotted_name
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
+from guillotina_amqp.events import JobProgressEvent
+from guillotina_amqp.events import JobFinishedEvent
 from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
@@ -240,7 +243,7 @@ class Job:
         # There are 2 different event types:
         #
         # type = MessageType.RESULT: task value yield
-        # type = MessageType.DEBUG: task message, will be logged to the state manager3
+        # type = MessageType.DEBUG: task message, will be logged to the state manager
         #
         # All the values yielded by the task are returned as a list to the
         # caller
@@ -267,6 +270,9 @@ class Job:
                     state['eventlog'].append([date_now, content])
                     await self.state_manager.update(task_id, state)
 
+                    # Send progres event
+                    await notify(JobProgressEvent(self, content))
+
                 elif msg_type == MessageType.RESULT:
                     # RESULT value yielded: accumulate all the
                     # generator results in a list
@@ -275,6 +281,10 @@ class Job:
                         result = [content]
                     elif isinstance(result, list):
                         result.append(content)
+
+                    # Send progres event
+                    await notify(JobProgressEvent(self, content))
+
                 else:
                     # Unknown message: log and continue
                     logger.debug(f'Job {task_id}: invalid generator event code {msg_type}')
@@ -282,6 +292,9 @@ class Job:
         else:
             # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
-        aiotask_context.set('amqp_job', None)
 
+        # Send finished event
+        await notify(JobFinishedEvent(self, result))
+
+        aiotask_context.set('amqp_job', None)
         return result

@@ -32,3 +32,4 @@ def includeme(root):
     """
     configure.scan('guillotina_amqp.permissions')
     configure.scan('guillotina_amqp.api')
+    configure.scan('guillotina_amqp.events')
