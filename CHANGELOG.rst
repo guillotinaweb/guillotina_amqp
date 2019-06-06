@@ -1,4 +1,4 @@
-3.1.2 (unreleased)
+3.1.3 (2019-06-06)
 ------------------
 
 - Log exception with unhandled task errors
