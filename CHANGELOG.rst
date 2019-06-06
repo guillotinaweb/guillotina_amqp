@@ -1,7 +1,8 @@
 3.1.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Log exception with unhandled task errors
+  [vangheem]
 
 
 3.1.1 (2019-05-22)

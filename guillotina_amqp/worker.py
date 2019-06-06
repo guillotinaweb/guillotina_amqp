@@ -244,6 +244,7 @@ class Worker:
             logger.warning(f'Task got cancelled: {task._job.data}', exc_info=True)
             return await self._handle_canceled(task)
         except Exception:
+            logger.error(f'Unhandled task exception: {task_id}', exc_info=True)
             # Error during execution of the task
             #
             # If max retries reached
