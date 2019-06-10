@@ -1,7 +1,8 @@
 3.1.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Copy all headers from original request to task
+  [vangheem]
 
 
 3.1.3 (2019-06-06)

@@ -31,7 +31,6 @@ from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
 import aiotask_context
-import asyncio
 import inspect
 import yarl
 import time
@@ -61,7 +60,10 @@ def login_user(request, user_data):
     request.security.invalidate_cache()
     request._cache_groups = {}
     if user_data.get('Authorization'):
+        # leave in for b/w compat, remove at later date
         request.headers['Authorization'] = user_data['Authorization']
+    for name, value in (user_data.get('headers') or {}).items():
+        request.headers[name] = value
 
 
 class EmptyPayload:
@@ -87,7 +89,6 @@ class Job:
         self.data = data
         self.channel = channel
         self.envelope = envelope
-        self.loop = asyncio.get_event_loop()
 
         self.task = None
         self._state_manager = None
