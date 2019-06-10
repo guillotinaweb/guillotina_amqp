@@ -71,7 +71,7 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
             'roles': [name for name, setting in user.roles.items()
                       if setting == Allow],
             'groups': user.groups,
-            'Authorization': _request.headers.get('Authorization'),
+            'headers': dict(_request.headers),
             'data': getattr(user, 'data', {})
         }
     except (AttributeError, IndexError):
