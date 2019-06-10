@@ -1,4 +1,4 @@
-3.1.4 (unreleased)
+3.1.4 (2019-06-10)
 ------------------
 
 - Copy all headers from original request to task
