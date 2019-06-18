@@ -1,4 +1,4 @@
-3.1.5 (unreleased)
+3.1.5 (2019-06-18)
 ------------------
 
 - restrict compat g version
