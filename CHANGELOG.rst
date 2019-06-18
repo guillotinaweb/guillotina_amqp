@@ -1,7 +1,7 @@
 3.1.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- restrict compat g version
 
 
 3.1.4 (2019-06-10)
