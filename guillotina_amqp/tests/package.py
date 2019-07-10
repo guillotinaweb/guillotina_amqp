@@ -2,6 +2,13 @@ from guillotina import configure
 from guillotina_amqp.utils import add_object_task
 from guillotina_amqp.utils import add_task
 from guillotina_amqp.interfaces import MessageType
+from guillotina_amqp.events import IJobFinishedEvent
+
+
+@configure.subscriber(for_=(IJobFinishedEvent))
+async def job_finished(event):
+    import pdb; pdb.set_trace()
+    pass
 
 
 async def task_foobar_yo(one, two, three='blah'):

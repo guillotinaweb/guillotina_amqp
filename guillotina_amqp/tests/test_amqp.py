@@ -270,3 +270,21 @@ def test_job_function_name():
     }
     job = Job(None, data, None, None)
     assert job.function_name == 'guillotina_amqp.tests.utils._test_func'
+
+
+async def test_job_events(dummy_request, rabbitmq_container,
+                        amqp_worker, amqp_channel,
+                        configured_state_manager):
+    aiotask_context.set('request', dummy_request)
+
+    ts = await add_task(_test_event_func, 1, 2)
+
+    await ts.join(0.02)
+    await asyncio.sleep(1)
+
+    state = await ts.get_state()
+    assert state['status'] == TaskStatus.FINISHED
+    main_queue = await amqp_worker.queue_main(amqp_channel)
+    assert main_queue['message_count'] == 0
+
+    aiotask_context.set('request', None)
