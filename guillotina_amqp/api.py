@@ -16,7 +16,7 @@ from guillotina.response import HTTPNotFound
 async def list_tasks(context, request):
     mngr = get_state_manager()
     ret = []
-    task_prefix = get_task_id_prefix(request)
+    task_prefix = get_task_id_prefix()
     async for el in mngr.list():
         if el.startswith(task_prefix):
             ret.append(el)
@@ -30,7 +30,7 @@ async def list_tasks(context, request):
                    permission='guillotina.ManageAMQP',
                    summary='Deprecated: Shows the info of a given task id')
 async def info_task(context, request):
-    task_prefix = get_task_id_prefix(request)
+    task_prefix = get_task_id_prefix()
     if not request.matchdict['task_id'].startswith(task_prefix):
         return HTTPNotFound(content={
             'reason': 'Task not found'
@@ -51,7 +51,7 @@ async def info_task(context, request):
                    permission='guillotina.ManageAMQP',
                    summary='Deprecated: Cancel a specific task by id')
 async def cancel_task(context, request):
-    task_prefix = get_task_id_prefix(request)
+    task_prefix = get_task_id_prefix()
     if not request.matchdict['task_id'].startswith(task_prefix):
         return HTTPNotFound(content={
             'reason': 'Task not found'
