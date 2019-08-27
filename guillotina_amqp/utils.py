@@ -8,6 +8,7 @@ from guillotina.utils import get_current_request
 from guillotina.utils import get_dotted_name
 from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
+from guillotina.utils.misc import get_current_container
 from guillotina_amqp import amqp
 from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
@@ -81,8 +82,9 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
     except (AttributeError, IndexError):
         pass
 
-    if getattr(_request, 'container', None):
-        req_data['container_url'] = IAbsoluteURL(_request.container, _request)()
+    container = task_vars.container.get()
+    if container is not None:
+        req_data['container_url'] = IAbsoluteURL(container, _request)()
 
     if _task_id is None:
         task_id = generate_task_id()
@@ -97,7 +99,6 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
             state = TaskState(task_id)
             dotted_name = get_dotted_name(func)
             db = task_vars.db.get()
-            container = task_vars.container.get()
             logger.info(f'Scheduling task: {task_id}: {dotted_name}')
             data = json.dumps({
                 'func': dotted_name,
@@ -131,9 +132,9 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
 
 
 async def _prepare_func(dotted_func, path, *args, **kwargs):
-    request = get_current_request()
+    container = get_current_container()
     try:
-        ob = await navigate_to(request.container, path)
+        ob = await navigate_to(container, path)
     except KeyError:
         logger.warning(f'Object in {path} not found')
         raise ObjectNotFoundException

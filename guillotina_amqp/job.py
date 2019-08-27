@@ -136,7 +136,7 @@ class Job:
             tm = db.get_transaction_manager()
             g_task_vars.tm.set(tm)
             # Start a transaction
-            txn = await tm.begin(request=request)
+            txn = await tm.begin()
             # Get the root of the tree
             context = await tm.get_root(txn=txn)
 
@@ -144,16 +144,16 @@ class Job:
                 container = await context.async_get(self.data['container_id'])
                 if container is None:
                     raise Exception(f'Could not find container: {self.data["container_id"]}')
-                request._container_id = container.id
-                request.container = container
+                g_task_vars.container.set(container)
                 annotations_container = IAnnotations(container)
-                request.container_settings = await annotations_container.async_get(REGISTRY_DATA_KEY)
-                layers = request.container_settings.get(ACTIVE_LAYERS_KEY, [])
+                container_settings = await annotations_container.async_get(REGISTRY_DATA_KEY)
+                layers = container_settings.get(ACTIVE_LAYERS_KEY, [])
                 for layer in layers:
                     try:
                         alsoProvides(request, import_class(layer))
                     except ModuleNotFoundError:
                         pass
+                g_task_vars.registry.set(container_settings)
         return request
 
     async def __call__(self):
@@ -163,7 +163,7 @@ class Job:
             result = await self.__run(request)
             try:
                 # Finish and return result
-                await commit(request)
+                await commit()
                 request.execute_futures()
             except Exception:
                 logger.warning('Error commiting job', exc_info=True)
@@ -177,7 +177,7 @@ class Job:
             raise
         finally:
             try:
-                await abort(request)
+                await abort()
             except Exception:
                 logger.warning('Error aborting job', exc_info=True)
 
