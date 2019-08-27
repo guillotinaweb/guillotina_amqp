@@ -3,6 +3,7 @@ from guillotina import glogging
 from guillotina import task_vars
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAbsoluteURL
+from guillotina.utils import get_authenticated_user
 from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
 from guillotina.utils import get_dotted_name
@@ -68,19 +69,19 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         'method': _request.method,
         'annotations': getattr(_request, 'annotations', {})
     }
-    try:
-        participation = _request.security.participations[0]
-        user = participation.principal
-        req_data['user'] = {
-            'id': user.id,
-            'roles': [name for name, setting in user.roles.items()
-                      if setting == Allow],
-            'groups': user.groups,
-            'headers': dict(_request.headers),
-            'data': getattr(user, 'data', {})
-        }
-    except (AttributeError, IndexError):
-        pass
+    user = get_authenticated_user()
+    if user is not None:
+        try:
+            req_data['user'] = {
+                'id': user.id,
+                'roles': [name for name, setting in user.roles.items()
+                          if setting == Allow],
+                'groups': user.groups,
+                'headers': dict(_request.headers),
+                'data': getattr(user, 'data', {})
+            }
+        except AttributeError:
+            pass
 
     container = task_vars.container.get()
     if container is not None:

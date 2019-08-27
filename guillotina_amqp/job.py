@@ -41,12 +41,10 @@ def login_user(request, user_data):
     """Logs user in to guillotina so the job has the correct access
 
     """
-
     if 'id' in user_data:
-        user = GuillotinaUser(request)
-        user.id = user_data['id']
-        user._groups = user_data.get('groups', [])
-        user._roles = {name: Allow for name in user_data['roles']}
+        user = GuillotinaUser(
+            user_id=user_data['id'], groups=user_data.get('groups', []),
+            roles={name: Allow for name in user_data['roles']})
         user.data = user_data.get('data', {})
         set_authenticated_user(user)
     else:
