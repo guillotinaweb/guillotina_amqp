@@ -1,39 +1,37 @@
 from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
+from guillotina_amqp import task_vars
 from guillotina import glogging
-from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
+from guillotina.auth.utils import set_authenticated_user
 from guillotina.component import get_utility
 from guillotina.interfaces import ACTIVE_LAYERS_KEY
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAnnotations
 from guillotina.interfaces import IApplication
 from guillotina.registry import REGISTRY_DATA_KEY
-from guillotina.security.policy import Interaction
 from guillotina.transactions import abort
 from guillotina.transactions import commit
-from guillotina.utils import import_class
 from guillotina.utils import get_dotted_name
+from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
-from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
 from guillotina_amqp.utils import _yield_object_task
-
-
+from guillotina import task_vars as g_task_vars
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
-import aiotask_context
 import inspect
-import yarl
 import time
+import yarl
 
 
 logger = glogging.getLogger('guillotina_amqp.job')
@@ -43,9 +41,6 @@ def login_user(request, user_data):
     """Logs user in to guillotina so the job has the correct access
 
     """
-    request.security = Interaction(request)
-    participation = GuillotinaParticipation(request)
-    participation.interaction = None
 
     if 'id' in user_data:
         user = GuillotinaUser(request)
@@ -53,12 +48,10 @@ def login_user(request, user_data):
         user._groups = user_data.get('groups', [])
         user._roles = {name: Allow for name in user_data['roles']}
         user.data = user_data.get('data', {})
-        participation.principal = user
-        request._cache_user = user
+        set_authenticated_user(user)
+    else:
+        set_authenticated_user(None)
 
-    request.security.add(participation)
-    request.security.invalidate_cache()
-    request._cache_groups = {}
     if user_data.get('Authorization'):
         # leave in for b/w compat, remove at later date
         request.headers['Authorization'] = user_data['Authorization']
@@ -132,7 +125,7 @@ class Job:
             self.task._loop,
             client_max_size=self.base_request._client_max_size,
             state=self.base_request._state.copy())
-        aiotask_context.set('request', request)
+        g_task_vars.request.set(request)
         request.annotations = req_data.get('annotations', {})
 
         if self.data.get('db_id'):
@@ -247,7 +240,7 @@ class Job:
         # caller
         #
 
-        aiotask_context.set('amqp_job', self)
+        task_vars.amqp_job.set(self)
         # Function is an async generator
         if inspect.isasyncgenfunction(func):
             async for status in func(*self.data['args'], **self.data['kwargs']):
@@ -283,6 +276,6 @@ class Job:
         else:
             # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
-        aiotask_context.set('amqp_job', None)
+        task_vars.amqp_job.set(None)
 
         return result

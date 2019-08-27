@@ -1,7 +1,7 @@
-3.1.6 (unreleased)
+5.0.0 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Upgrade to guillotina 5
 
 
 3.1.5 (2019-06-18)
