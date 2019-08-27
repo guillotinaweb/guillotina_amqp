@@ -131,10 +131,10 @@ class Job:
         if self.data.get('db_id'):
             root = get_utility(IApplication, name='root')
             db = await root.async_get(self.data['db_id'])
-            task_vars.db.set(db)
+            g_task_vars.db.set(db)
             # Add a transaction Manager to request
             tm = db.get_transaction_manager()
-            task_vars.tm.set(tm)
+            g_task_vars.tm.set(tm)
             # Start a transaction
             txn = await tm.begin(request=request)
             # Get the root of the tree
