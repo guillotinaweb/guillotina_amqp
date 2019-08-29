@@ -72,4 +72,4 @@ async def test_cancel_task(container_requester, dummy_request):
             'DELETE', '/db/guillotina/@amqp-tasks/foo')
         assert status == 404
 
-    aiotask_context.set('request', None)
+    task_vars..request.set(None)

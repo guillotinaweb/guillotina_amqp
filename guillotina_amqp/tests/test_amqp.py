@@ -2,6 +2,7 @@ from guillotina_amqp.amqp import get_beaconsmgr_for_connection
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import TaskStatus
 from guillotina_amqp.utils import add_task
+from guillotina import task_vars
 from guillotina_amqp.utils import cancel_task
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.tests.utils import _test_long_func
@@ -16,7 +17,6 @@ from guillotina_amqp.utils import _yield_object_task
 from guillotina.utils import get_dotted_name
 
 
-import aiotask_context
 import asyncio
 import json
 
@@ -24,7 +24,7 @@ import json
 async def test_add_task(dummy_request, rabbitmq_container,
                         amqp_worker, amqp_channel,
                         configured_state_manager):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     ts = await add_task(_test_func, 1, 2)
 
     await ts.join(0.02)
@@ -35,13 +35,13 @@ async def test_add_task(dummy_request, rabbitmq_container,
     main_queue = await amqp_worker.queue_main(amqp_channel)
     assert main_queue['message_count'] == 0
 
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_generator_tasks(dummy_request, rabbitmq_container,
                                amqp_worker, amqp_channel,
                                configured_state_manager):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     ts = await add_task(_test_asyncgen, 1, 2)
     await ts.join(0.02)
 
@@ -60,17 +60,17 @@ async def test_generator_tasks(dummy_request, rabbitmq_container,
     await ts_doubley.join(0.02)
     assert await ts_doubley.get_result() == [128, 1024, 2048]
 
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_run_task(dummy_request, rabbitmq_container, amqp_worker):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     state = await add_task(_test_func, 1, 2)
     await state.join(0.01)
     await asyncio.sleep(0.1)  # prevent possible race condition here
     assert amqp_worker.total_run == 1
     assert await state.get_result() == 3
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_task_from_service(rabbitmq_container, amqp_worker,
@@ -130,7 +130,7 @@ async def test_cancels_long_running_task(dummy_request,
                                          rabbitmq_container,
                                          amqp_worker,
                                          configured_state_manager):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     # Add long running task
     ts = await _test_long_func(120)
     # Wait a bit and cancel
@@ -146,11 +146,11 @@ async def test_cancels_long_running_task(dummy_request,
     assert state['status'] == TaskStatus.CANCELED
     await asyncio.sleep(0.1)  # prevent possible race condition here
     assert amqp_worker.total_run == 1
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_decorator_task(dummy_request, rabbitmq_container, amqp_worker):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     state = await _decorator_test_func(1, 2)
     data = await state.join(0.01)
     assert data['result'] == 3
@@ -158,14 +158,14 @@ async def test_decorator_task(dummy_request, rabbitmq_container, amqp_worker):
     assert amqp_worker.total_run == 1
     assert await state.get_status() == 'finished'
     assert await state.get_result() == 3
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
                                                                 rabbitmq_container,
                                                                 amqp_worker,
                                                                 amqp_channel):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
     ts = await _test_failing_func()
     # wait for it to finish
     await ts.join(0.1)
@@ -188,14 +188,14 @@ async def test_errored_job_should_be_published_to_delayed_queue(dummy_request,
         assert decoded['task_id'] == task_id
 
     await amqp_channel.basic_consume(callback, queue_name=delayed['queue'])
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
                                                           rabbitmq_container,
                                                           amqp_worker,
                                                           amqp_channel):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
 
     # Add failing function and wait for it to finish
     ts = await _test_failing_func()
@@ -222,13 +222,13 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
     assert main_queue['consumer_count'] == 1
     assert errored_queue['message_count'] == 1
 
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 async def test_worker_beacons_process_exit(dummy_request,
                                            rabbitmq_container,
                                            amqp_worker, amqp_channel):
-    aiotask_context.set('request', dummy_request)
+    task_vars.request.set(dummy_request)
 
     # Give the worker some job and sleep
     ts = await _test_long_func(20)
@@ -246,7 +246,7 @@ async def test_worker_beacons_process_exit(dummy_request,
     # no beacons as expected and that the process will exit
     await mgr.autokill_event.wait()
 
-    aiotask_context.set('request', None)
+    task_vars.request.set(None)
 
 
 def test_job_function_name():
