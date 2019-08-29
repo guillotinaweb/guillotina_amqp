@@ -10,7 +10,7 @@ async def task_foobar_yo(one, two, three='blah'):
 
 async def task_object_write(ob, value):
     ob.title = value
-    ob._p_register()
+    ob.register()
     return 'done!'
 
 
@@ -23,7 +23,7 @@ async def task_object_write_generator(ob, values=None):
     if values:
         # Change the title of the object
         ob.title = 'CHANGED!'
-        ob._p_register()
+        ob.register()
 
 
 @configure.service(name='@foobar', method='GET')

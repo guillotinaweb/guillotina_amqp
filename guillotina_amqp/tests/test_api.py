@@ -1,29 +1,31 @@
-from guillotina_amqp.utils import add_task
-from guillotina_amqp.tests.utils import _test_func
 from guillotina import task_vars
+from guillotina.tests.utils import get_container
+from guillotina_amqp.tests.utils import _test_func
+from guillotina_amqp.utils import add_task
 
 
 async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
     async with container_requester as requester:
         task_vars.request.set(dummy_request)
         task_vars.db.set(requester.db)
+        await get_container(requester=requester)
 
         # Add some tasks first
         t1 = await add_task(_test_func, 1, 2)
         t2 = await add_task(_test_func, 3, 4)
 
-        async with container_requester as requester:
-            resp, status = await requester('GET', '/db/guillotina/@amqp-tasks')
-            assert status == 200
-            assert len(resp) == 2
-            assert t1.task_id in resp
-            assert t2.task_id in resp
+        resp, status = await requester('GET', '/db/guillotina/@amqp-tasks')
+        assert status == 200
+        assert len(resp) == 2
+        assert t1.task_id in resp
+        assert t2.task_id in resp
 
 
 async def test_info_task(container_requester, dummy_request):
     async with container_requester as requester:
         task_vars.request.set(dummy_request)
         task_vars.db.set(requester.db)
+        await get_container(requester=requester)
 
         # Add some tasks first
         t1 = await add_task(_test_func, 1, 2)
@@ -43,7 +45,7 @@ async def test_info_task(container_requester, dummy_request):
         resp, status = await requester(
             'GET', '/db/guillotina/@amqp-tasks/task:db-guillotina-foobar')
         assert status == 404
-        assert resp['reason'] == 'Task not found
+        assert resp['reason'] == 'Task not found'
 
 
 async def test_cancel_task(container_requester, dummy_request):
@@ -51,6 +53,7 @@ async def test_cancel_task(container_requester, dummy_request):
     async with container_requester as requester:
         task_vars.request.set(dummy_request)
         task_vars.db.set(requester.db)
+        await get_container(requester=requester)
 
         # Add some tasks first
         t1 = await add_task(_test_func, 1, 2)
@@ -72,4 +75,4 @@ async def test_cancel_task(container_requester, dummy_request):
             'DELETE', '/db/guillotina/@amqp-tasks/foo')
         assert status == 404
 
-    task_vars..request.set(None)
+    task_vars.request.set(None)
