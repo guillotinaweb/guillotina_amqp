@@ -6,6 +6,10 @@ python:
 sudo: required
 env:
   - DATABASE=DUMMY
+addons:
+  apt:
+    packages:
+    - rabbitmq-server
 
 cache:
   directories:
@@ -22,5 +26,4 @@ after_success:
   - codecov
 services:
   - redis-server
-  - rabbitmq
   - docker
