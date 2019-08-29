@@ -9,7 +9,11 @@ env:
 addons:
   apt:
     packages:
-    - rabbitmq-server
+      - rabbitmq-server
+services:
+  - rabbitmq
+  - redis-server
+  - docker
 
 cache:
   directories:
@@ -24,7 +28,3 @@ script:
   - pytest -s --cov=guillotina_amqp -s --tb=native -v --cov-report term-missing --cov-append guillotina_amqp
 after_success:
   - codecov
-services:
-  - rabbitmq
-  - redis-server
-  - docker
