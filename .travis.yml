@@ -5,7 +5,7 @@ python:
     - "3.7"
 sudo: required
 env:
-    - DATABASE=DUMMY
+  - DATABASE=DUMMY
 
 cache:
   directories:

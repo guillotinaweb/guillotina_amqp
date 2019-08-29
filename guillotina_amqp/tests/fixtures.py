@@ -1,9 +1,13 @@
-from guillotina import testing
-import pytest
-from guillotina_amqp.worker import Worker
-from guillotina_amqp import amqp
 from guillotina import app_settings
+from guillotina import testing
+from guillotina_amqp import amqp
+from guillotina_amqp.worker import Worker
+from pytest_docker_fixtures.containers.rabbitmq import rabbitmq_image
+
+import os
+import pytest
 import uuid
+
 
 base_amqp_settings = {
     "connection_factory": "guillotina_amqp.tests.mocks.amqp_connection_factory",
@@ -145,8 +149,23 @@ async def amqp_channel():
     return channel
 
 
+IS_TRAVIS = 'TRAVIS' in os.environ
+
+
+@pytest.fixture(scope='session')
+def rabbitmq_runner():
+    if IS_TRAVIS:
+        host = 'localhost'
+        port = 6379
+    else:
+        host, port = rabbitmq_image.run()
+    yield host, port
+    if not IS_TRAVIS:
+        rabbitmq_image.stop()
+
+
 @pytest.fixture('function')
-def rabbitmq_container(rabbitmq):
+def rabbitmq_container(rabbitmq_runner):
     app_settings['amqp'].update({
         "connection_factory": "aioamqp.connect",
         "host": rabbitmq[0],
