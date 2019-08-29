@@ -156,7 +156,7 @@ IS_TRAVIS = 'TRAVIS' in os.environ
 def rabbitmq_runner():
     if IS_TRAVIS:
         host = 'localhost'
-        port = 6379
+        port = 5672
     else:
         host, port = rabbitmq_image.run()
     yield host, port
