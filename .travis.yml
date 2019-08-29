@@ -1,8 +1,8 @@
 # we want to make sure it is run on trusty where sudo is provided for postgres
-dist: trusty
+dist: xenial
 language: python
 python:
-    - "3.6"
+    - "3.7"
 sudo: required
 env:
     - DATABASE=DUMMY
@@ -11,6 +11,7 @@ cache:
   directories:
     - eggs
 install:
+  - pip install git+git://github.com/plone/guillotina@g5-fixes
   - pip install -e .[test]
   - pip install flake8 codecov
   - sleep 5
