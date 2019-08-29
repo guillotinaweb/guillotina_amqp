@@ -168,8 +168,8 @@ def rabbitmq_runner():
 def rabbitmq_container(rabbitmq_runner):
     app_settings['amqp'].update({
         "connection_factory": "aioamqp.connect",
-        "host": rabbitmq[0],
-        "port": rabbitmq[1],
+        "host": rabbitmq_runner[0],
+        "port": rabbitmq_runner[1],
         "login": "guest",
         "password": "guest",
         "vhost": "/",
