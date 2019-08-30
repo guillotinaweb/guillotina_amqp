@@ -15,7 +15,8 @@ setup(
     install_requires=[
         'guillotina>=5.0.0.dev0,<6',
         'aioamqp',
-        'lru-dict'
+        'lru-dict',
+        'aioredis'
     ],
     author='Nathan Van Gheem',
     author_email='vangheem@gmail.com',
