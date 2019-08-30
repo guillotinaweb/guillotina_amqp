@@ -6,12 +6,7 @@ python:
 sudo: required
 env:
   - DATABASE=DUMMY
-addons:
-  apt:
-    packages:
-      - rabbitmq-server
 services:
-  - rabbitmq
   - redis-server
   - docker
 
