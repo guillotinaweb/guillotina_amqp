@@ -1,4 +1,4 @@
-5.0.0 (unreleased)
+5.0.0 (2019-08-30)
 ------------------
 
 - Upgrade to guillotina 5
