@@ -1,39 +1,37 @@
 from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
+from guillotina_amqp import task_vars
 from guillotina import glogging
-from guillotina.auth.participation import GuillotinaParticipation
 from guillotina.auth.users import GuillotinaUser
+from guillotina.auth.utils import set_authenticated_user
 from guillotina.component import get_utility
 from guillotina.interfaces import ACTIVE_LAYERS_KEY
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAnnotations
 from guillotina.interfaces import IApplication
 from guillotina.registry import REGISTRY_DATA_KEY
-from guillotina.security.policy import Interaction
 from guillotina.transactions import abort
 from guillotina.transactions import commit
-from guillotina.utils import import_class
 from guillotina.utils import get_dotted_name
+from guillotina.utils import import_class
 from guillotina.utils import resolve_dotted_name
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
-from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
 from guillotina_amqp.utils import _yield_object_task
-
-
+from guillotina import task_vars as g_task_vars
 from multidict import CIMultiDict
 from unittest import mock
 from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
-import aiotask_context
 import inspect
-import yarl
 import time
+import yarl
 
 
 logger = glogging.getLogger('guillotina_amqp.job')
@@ -43,22 +41,15 @@ def login_user(request, user_data):
     """Logs user in to guillotina so the job has the correct access
 
     """
-    request.security = Interaction(request)
-    participation = GuillotinaParticipation(request)
-    participation.interaction = None
-
     if 'id' in user_data:
-        user = GuillotinaUser(request)
-        user.id = user_data['id']
-        user._groups = user_data.get('groups', [])
-        user._roles = {name: Allow for name in user_data['roles']}
+        user = GuillotinaUser(
+            user_id=user_data['id'], groups=user_data.get('groups', []),
+            roles={name: Allow for name in user_data['roles']})
         user.data = user_data.get('data', {})
-        participation.principal = user
-        request._cache_user = user
+        set_authenticated_user(user)
+    else:
+        set_authenticated_user(None)
 
-    request.security.add(participation)
-    request.security.invalidate_cache()
-    request._cache_groups = {}
     if user_data.get('Authorization'):
         # leave in for b/w compat, remove at later date
         request.headers['Authorization'] = user_data['Authorization']
@@ -132,18 +123,18 @@ class Job:
             self.task._loop,
             client_max_size=self.base_request._client_max_size,
             state=self.base_request._state.copy())
-        aiotask_context.set('request', request)
+        g_task_vars.request.set(request)
         request.annotations = req_data.get('annotations', {})
 
         if self.data.get('db_id'):
             root = get_utility(IApplication, name='root')
             db = await root.async_get(self.data['db_id'])
-            request._db_write_enabled = True
-            request._db_id = db.id
+            g_task_vars.db.set(db)
             # Add a transaction Manager to request
-            tm = request._tm = db.get_transaction_manager()
+            tm = db.get_transaction_manager()
+            g_task_vars.tm.set(tm)
             # Start a transaction
-            txn = await tm.begin(request=request)
+            txn = await tm.begin()
             # Get the root of the tree
             context = await tm.get_root(txn=txn)
 
@@ -151,16 +142,16 @@ class Job:
                 container = await context.async_get(self.data['container_id'])
                 if container is None:
                     raise Exception(f'Could not find container: {self.data["container_id"]}')
-                request._container_id = container.id
-                request.container = container
+                g_task_vars.container.set(container)
                 annotations_container = IAnnotations(container)
-                request.container_settings = await annotations_container.async_get(REGISTRY_DATA_KEY)
-                layers = request.container_settings.get(ACTIVE_LAYERS_KEY, [])
+                container_settings = await annotations_container.async_get(REGISTRY_DATA_KEY)
+                layers = container_settings.get(ACTIVE_LAYERS_KEY, [])
                 for layer in layers:
                     try:
                         alsoProvides(request, import_class(layer))
                     except ModuleNotFoundError:
                         pass
+                g_task_vars.registry.set(container_settings)
         return request
 
     async def __call__(self):
@@ -170,7 +161,7 @@ class Job:
             result = await self.__run(request)
             try:
                 # Finish and return result
-                await commit(request)
+                await commit()
                 request.execute_futures()
             except Exception:
                 logger.warning('Error commiting job', exc_info=True)
@@ -184,7 +175,7 @@ class Job:
             raise
         finally:
             try:
-                await abort(request)
+                await abort()
             except Exception:
                 logger.warning('Error aborting job', exc_info=True)
 
@@ -247,7 +238,7 @@ class Job:
         # caller
         #
 
-        aiotask_context.set('amqp_job', self)
+        task_vars.amqp_job.set(self)
         # Function is an async generator
         if inspect.isasyncgenfunction(func):
             async for status in func(*self.data['args'], **self.data['kwargs']):
@@ -283,6 +274,6 @@ class Job:
         else:
             # Regular coroutine
             result = await func(*self.data['args'], **self.data['kwargs'])
-        aiotask_context.set('amqp_job', None)
+        task_vars.amqp_job.set(None)
 
         return result

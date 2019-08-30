@@ -1,9 +1,13 @@
-from guillotina import testing
-import pytest
-from guillotina_amqp.worker import Worker
-from guillotina_amqp import amqp
 from guillotina import app_settings
+from guillotina import testing
+from guillotina_amqp import amqp
+from guillotina_amqp.worker import Worker
+from pytest_docker_fixtures.containers.rabbitmq import rabbitmq_image
+
+import os
+import pytest
 import uuid
+
 
 base_amqp_settings = {
     "connection_factory": "guillotina_amqp.tests.mocks.amqp_connection_factory",
@@ -57,10 +61,13 @@ test_logger_settings = {
 def base_settings_configurator(settings):
     if 'applications' in settings:
         settings['applications'].extend([
-            'guillotina_amqp', 'guillotina_amqp.tests.package'
+            'guillotina_amqp', 'guillotina_amqp.tests.package',
+            'guillotina.contrib.redis'
         ])
     else:
-        settings['applications'] = ['guillotina_amqp', 'guillotina_amqp.tests.package']
+        settings['applications'] = [
+            'guillotina_amqp', 'guillotina_amqp.tests.package',
+            'guillotina.contrib.redis']
     settings['amqp'] = base_amqp_settings
     settings['logging'] = test_logger_settings
 
@@ -103,12 +110,6 @@ def configured_state_manager(request, redis, dummy_request, loop):
         }})
         print('Running with redis')
         yield redis
-
-        # NOTE: we need to close the redis pool otherwise it's
-        # attached to the first loop and the nexts tests have new
-        # loops, which causes its to crash
-        from guillotina_rediscache.cache import close_redis_pool
-        loop.run_until_complete(close_redis_pool())
     else:
         # Memory
         app_settings['amqp']['persistent_manager'] = 'memory'
@@ -132,17 +133,26 @@ def redis_state_manager(redis, dummy_request, loop):
     print('Running with redis')
     yield redis
 
-    # NOTE: we need to close the redis pool otherwise it's
-    # attached to the first loop and the nexts tests have new
-    # loops, which causes its to crash
-    from guillotina_rediscache.cache import close_redis_pool
-    loop.run_until_complete(close_redis_pool())
-
 
 @pytest.fixture('function')
 async def amqp_channel():
     channel, transport, protocol = await amqp.get_connection()
     return channel
+
+
+IS_TRAVIS = 'TRAVIS' in os.environ
+
+
+@pytest.fixture(scope='session')
+def rabbitmq_runner():
+    if IS_TRAVIS:
+        host = '127.0.0.1'
+        port = 5672
+    else:
+        host, port = rabbitmq_image.run()
+    yield host, port
+    if not IS_TRAVIS:
+        rabbitmq_image.stop()
 
 
 @pytest.fixture('function')

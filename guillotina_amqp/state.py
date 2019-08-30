@@ -18,7 +18,7 @@ import copy
 
 try:
     import aioredis
-    from guillotina_rediscache.cache import get_redis_pool
+    from guillotina.contrib import redis
 except ImportError:
     aioredis = None
 
@@ -182,12 +182,12 @@ class RedisStateManager:
             return None
 
         if aioredis is None:
-            logger.warning('guillotina_rediscache not installed')
+            logger.warning('aioredis not installed')
             self._cache = _EMPTY
             return None
 
         if 'redis' in app_settings:
-            self._cache = aioredis.Redis(await get_redis_pool(loop=self.loop))
+            self._cache = aioredis.Redis((await redis.get_driver()).pool)
             return self._cache
         else:
             self._cache = _EMPTY

@@ -1,9 +1,8 @@
 from aiohttp import web
 from guillotina.commands.server import ServerCommand
 from guillotina_amqp.worker import Worker
-from guillotina import glogging
+from guillotina import glogging, task_vars
 
-import aiotask_context
 import asyncio
 import threading
 import os
@@ -97,7 +96,7 @@ class WorkerCommand(ServerCommand):
             loop.run_until_complete(self.run_worker(arguments, settings, app))
 
     async def run_worker(self, arguments, settings, app, loop=None):
-        aiotask_context.set('request', self.request)
+        task_vars.request.set(self.request)
 
         loop = loop or self.get_loop()
 

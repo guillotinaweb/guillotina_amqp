@@ -1,25 +1,28 @@
 from guillotina import app_settings
+from guillotina import glogging
+from guillotina import task_vars
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAbsoluteURL
+from guillotina.utils import get_authenticated_user
 from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
 from guillotina.utils import get_dotted_name
 from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
+from guillotina.utils.misc import get_current_container
 from guillotina_amqp import amqp
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import update_task_scheduled
-from guillotina_amqp.exceptions import ObjectNotFoundException
-from guillotina import glogging
 
-import inspect
 import aioamqp
+import asyncio
+import inspect
 import json
 import time
 import uuid
-import asyncio
 
 
 logger = glogging.getLogger('guillotina_amqp.utils')
@@ -34,16 +37,19 @@ async def cancel_task(task_id):
     return success
 
 
-def get_task_id_prefix(request):
+def get_task_id_prefix():
+    db = task_vars.db.get()
+    container = task_vars.container.get()
     return 'task:{}-{}-'.format(
-        request._db_id,
-        request._container_id)
+        db.id,
+        container.id)
 
 
-def generate_task_id(request):
-    if hasattr(request, '_container_id'):
+def generate_task_id():
+    container = task_vars.container.get()
+    if container is not None:
         return '{}{}'.format(
-            get_task_id_prefix(request),
+            get_task_id_prefix(),
             str(uuid.uuid4())
         )
     return str(uuid.uuid4())
@@ -63,25 +69,26 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         'method': _request.method,
         'annotations': getattr(_request, 'annotations', {})
     }
-    try:
-        participation = _request.security.participations[0]
-        user = participation.principal
-        req_data['user'] = {
-            'id': user.id,
-            'roles': [name for name, setting in user.roles.items()
-                      if setting == Allow],
-            'groups': user.groups,
-            'headers': dict(_request.headers),
-            'data': getattr(user, 'data', {})
-        }
-    except (AttributeError, IndexError):
-        pass
+    user = get_authenticated_user()
+    if user is not None:
+        try:
+            req_data['user'] = {
+                'id': user.id,
+                'roles': [name for name, setting in user.roles.items()
+                          if setting == Allow],
+                'groups': user.groups,
+                'headers': dict(_request.headers),
+                'data': getattr(user, 'data', {})
+            }
+        except AttributeError:
+            pass
 
-    if getattr(_request, 'container', None):
-        req_data['container_url'] = IAbsoluteURL(_request.container, _request)()
+    container = task_vars.container.get()
+    if container is not None:
+        req_data['container_url'] = IAbsoluteURL(container, _request)()
 
     if _task_id is None:
-        task_id = generate_task_id(_request)
+        task_id = generate_task_id()
     else:
         task_id = _task_id
 
@@ -92,13 +99,14 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         try:
             state = TaskState(task_id)
             dotted_name = get_dotted_name(func)
+            db = task_vars.db.get()
             logger.info(f'Scheduling task: {task_id}: {dotted_name}')
             data = json.dumps({
                 'func': dotted_name,
                 'args': args,
                 'kwargs': kwargs,
-                'db_id': getattr(_request, '_db_id', None),
-                'container_id': getattr(_request, '_container_id', None),
+                'db_id': getattr(db, 'id', None),
+                'container_id': getattr(container, 'id', None),
                 'req_data': req_data,
                 'task_id': task_id
             })
@@ -125,9 +133,9 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
 
 
 async def _prepare_func(dotted_func, path, *args, **kwargs):
-    request = get_current_request()
+    container = get_current_container()
     try:
-        ob = await navigate_to(request.container, path)
+        ob = await navigate_to(container, path)
     except KeyError:
         logger.warning(f'Object in {path} not found')
         raise ObjectNotFoundException
