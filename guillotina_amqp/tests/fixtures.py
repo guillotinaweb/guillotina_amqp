@@ -61,10 +61,13 @@ test_logger_settings = {
 def base_settings_configurator(settings):
     if 'applications' in settings:
         settings['applications'].extend([
-            'guillotina_amqp', 'guillotina_amqp.tests.package'
+            'guillotina_amqp', 'guillotina_amqp.tests.package',
+            'guillotina.contrib.redis'
         ])
     else:
-        settings['applications'] = ['guillotina_amqp', 'guillotina_amqp.tests.package']
+        settings['applications'] = [
+            'guillotina_amqp', 'guillotina_amqp.tests.package',
+            'guillotina.contrib.redis']
     settings['amqp'] = base_amqp_settings
     settings['logging'] = test_logger_settings
 
@@ -107,12 +110,6 @@ def configured_state_manager(request, redis, dummy_request, loop):
         }})
         print('Running with redis')
         yield redis
-
-        # NOTE: we need to close the redis pool otherwise it's
-        # attached to the first loop and the nexts tests have new
-        # loops, which causes its to crash
-        from guillotina_rediscache.cache import close_redis_pool
-        loop.run_until_complete(close_redis_pool())
     else:
         # Memory
         app_settings['amqp']['persistent_manager'] = 'memory'
@@ -135,12 +132,6 @@ def redis_state_manager(redis, dummy_request, loop):
     }})
     print('Running with redis')
     yield redis
-
-    # NOTE: we need to close the redis pool otherwise it's
-    # attached to the first loop and the nexts tests have new
-    # loops, which causes its to crash
-    from guillotina_rediscache.cache import close_redis_pool
-    loop.run_until_complete(close_redis_pool())
 
 
 @pytest.fixture('function')
@@ -165,7 +156,7 @@ def rabbitmq_runner():
 
 
 @pytest.fixture('function')
-def rabbitmq_container(rabbitmq_runner):
+def rabbitmq_container(rabbitmq):
     app_settings['amqp'].update({
         "connection_factory": "aioamqp.connect",
         "host": rabbitmq_runner[0],

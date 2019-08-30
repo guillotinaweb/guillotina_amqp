@@ -15,9 +15,6 @@ services:
   - redis-server
   - docker
 
-cache:
-  directories:
-    - eggs
 install:
   - pip install git+git://github.com/plone/guillotina@g5-fixes
   - pip install -e .[test]
