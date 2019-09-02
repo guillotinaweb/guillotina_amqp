@@ -1,7 +1,8 @@
 5.0.1 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Fix self.request
+  [qiwn]
 
 
 5.0.0 (2019-08-30)

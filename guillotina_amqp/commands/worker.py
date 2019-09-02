@@ -1,5 +1,6 @@
 from aiohttp import web
 from guillotina.commands.server import ServerCommand
+from guillotina.tests.utils import get_mocked_request
 from guillotina_amqp.worker import Worker
 from guillotina import glogging, task_vars
 
@@ -96,6 +97,7 @@ class WorkerCommand(ServerCommand):
             loop.run_until_complete(self.run_worker(arguments, settings, app))
 
     async def run_worker(self, arguments, settings, app, loop=None):
+        self.request = get_mocked_request()
         task_vars.request.set(self.request)
 
         loop = loop or self.get_loop()
