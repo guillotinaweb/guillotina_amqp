@@ -11,7 +11,6 @@ services:
   - docker
 
 install:
-  - pip install git+git://github.com/plone/guillotina@g5-fixes
   - pip install -e .[test]
   - pip install flake8 codecov
   - sleep 5
