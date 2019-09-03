@@ -1,12 +1,14 @@
 from aiohttp import web
+from guillotina import glogging
+from guillotina import task_vars
 from guillotina.commands.server import ServerCommand
 from guillotina.tests.utils import get_mocked_request
 from guillotina_amqp.worker import Worker
-from guillotina import glogging, task_vars
 
 import asyncio
-import threading
 import os
+import threading
+
 
 try:
     import prometheus_client
@@ -97,6 +99,13 @@ class WorkerCommand(ServerCommand):
             loop.run_until_complete(self.run_worker(arguments, settings, app))
 
     async def run_worker(self, arguments, settings, app, loop=None):
+        try:
+            await self._run_worker(arguments, settings, app, loop)
+        except Exception:
+            logger.error('Error running worker. Exiting', exc_info=True)
+            os._exit(1)
+
+    async def _run_worker(self, arguments, settings, app, loop=None):
         self.request = get_mocked_request()
         task_vars.request.set(self.request)
 

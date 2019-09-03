@@ -1,7 +1,8 @@
 5.0.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Exit worker on error starting up.
+  [vangheem]
 
 
 5.0.1 (2019-09-02)
