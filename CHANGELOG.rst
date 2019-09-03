@@ -1,4 +1,4 @@
-5.0.2 (unreleased)
+5.0.2 (2019-09-03)
 ------------------
 
 - Exit worker on error starting up.
