@@ -102,8 +102,9 @@ class Worker:
         task_id = data['task_id']
         dotted_name = data['func']
 
-        await update_task_scheduled(self.state_manager, task_id, eventlog=[])
         logger.info(f'Received task: {task_id}: {dotted_name}')
+        await update_task_scheduled(self.state_manager, task_id, eventlog=[])
+        logger.info(f'Recorded task: {task_id}: {dotted_name}')
 
         self.measure_running_jobs(len(self._running))
 
