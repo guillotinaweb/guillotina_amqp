@@ -118,23 +118,6 @@ You can use a couple of additional parameters:
   Overwrites configuraiton parameter.
 
 
-Beacons
--------
-
-The aioamqp client can get stuck on a closed connection and the worker
-would be running forever without processing any message.
-
-As a workaround, we implemented a beacon system independent for every
-worker. When getting a new connection to rabbitmq, we create a beacon
-queue and a beacon-delay queue. Both are exclusive queues, which means
-that will be removed after the connection from the worker is closed.
-
-On the background of every connection, we publish a beacon message to
-the beacon-delay queue, which is expected to be read again after a
-certain TTL from the beacon queue. If a beacon message is not received
-after 3 times the TTL, the worker will exit.
-
-
 API
 ---
 

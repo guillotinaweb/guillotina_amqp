@@ -1,4 +1,3 @@
-from guillotina_amqp.amqp import get_beaconsmgr_for_connection
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import TaskStatus
 from guillotina_amqp.utils import add_task
@@ -221,30 +220,6 @@ async def test_worker_retries_should_not_exceed_the_limit(dummy_request,
     errored_queue = await amqp_worker.queue_errored(amqp_channel)
     assert main_queue['consumer_count'] == 1
     assert errored_queue['message_count'] == 1
-
-    task_vars.request.set(None)
-
-
-async def test_worker_beacons_process_exit(dummy_request,
-                                           rabbitmq_container,
-                                           amqp_worker, amqp_channel):
-    task_vars.request.set(dummy_request)
-
-    # Give the worker some job and sleep
-    ts = await _test_long_func(20)
-    await cancel_task(ts.task_id)
-    await asyncio.sleep(4)
-
-    # Get the beacons manager
-    mgr = await get_beaconsmgr_for_connection()
-
-    # Stop the worker, which will disconnect from AMQP, preventing beacons from
-    # being sent.
-    await amqp_worker.stop()
-
-    # Wait to see that the autokill event was set, meaning that we received
-    # no beacons as expected and that the process will exit
-    await mgr.autokill_event.wait()
 
     task_vars.request.set(None)
 
