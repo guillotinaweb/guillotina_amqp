@@ -16,14 +16,14 @@ except ImportError:
     prometheus_client = None
 
 
-logger = glogging.getLogger('guillotina_amqp')
+logger = glogging.getLogger("guillotina_amqp")
 
 
 async def prometheus_view(request):
     if prometheus_client is None:
         return None
     output = prometheus_client.exposition.generate_latest()
-    return web.Response(text=output.decode('utf8'))
+    return web.Response(text=output.decode("utf8"))
 
 
 class EventLoopWatchdog(threading.Thread):
@@ -36,6 +36,7 @@ class EventLoopWatchdog(threading.Thread):
     If a task hangs, the watchdog will exit the worker and unfinished jobs
     will be taken by other workers.
     """
+
     def __init__(self, loop, timeout):
         super().__init__()
         self.loop = loop
@@ -48,12 +49,12 @@ class EventLoopWatchdog(threading.Thread):
         diff = self.loop.time() - self._time
 
         if diff > self.timeout:
-            logger.error(f'Exiting worker because no activity in {diff} seconds')
+            logger.error(f"Exiting worker because no activity in {diff} seconds")
             os._exit(1)
         else:
             # Schedule a check again
-            threading.Timer(self.timeout/4, self.check).start()
-            logger.debug(f'Last refreshed watchdog was {diff}s. ago')
+            threading.Timer(self.timeout / 4, self.check).start()
+            logger.debug(f"Last refreshed watchdog was {diff}s. ago")
 
     async def probe(self):
         """This method is used to trigger a context switching in the event
@@ -66,34 +67,45 @@ class EventLoopWatchdog(threading.Thread):
 
     def run(self):
         self.loop.create_task(self.probe())
-        threading.Timer(self.timeout/4, self.check).start()
+        threading.Timer(self.timeout / 4, self.check).start()
 
 
 class WorkerCommand(ServerCommand):
     """Guillotina command to start a worker"""
-    description = 'AMQP worker'
+
+    description = "AMQP worker"
 
     def get_parser(self):
         parser = super().get_parser()
-        parser.add_argument('--auto-kill-timeout',
-                            help='How long of no activity before we automatically kill process (in minutes)',
-                            type=int, default=-1)
-        parser.add_argument('--max-running-tasks',
-                            help='Max simultaneous running tasks',
-                            type=int, default=None)
-        parser.add_argument('--metrics-server', help='Launch an API server to expose metrics',
-                            default=False, action='store_true')
+        parser.add_argument(
+            "--auto-kill-timeout",
+            help="How long of no activity before we automatically kill process (in minutes)",
+            type=int,
+            default=-1,
+        )
+        parser.add_argument(
+            "--max-running-tasks",
+            help="Max simultaneous running tasks",
+            type=int,
+            default=None,
+        )
+        parser.add_argument(
+            "--metrics-server",
+            help="Launch an API server to expose metrics",
+            default=False,
+            action="store_true",
+        )
         return parser
 
     def run(self, arguments, settings, app):
         loop = self.get_loop()
         if arguments.metrics_server:
             asyncio.ensure_future(
-                self.run_worker(arguments, settings, app, loop=loop),
-                loop=loop)
-            port = arguments.port or settings.get('address', settings.get('port'))
+                self.run_worker(arguments, settings, app, loop=loop), loop=loop
+            )
+            port = arguments.port or settings.get("address", settings.get("port"))
             app = web.Application()
-            app.router.add_get('/metrics', prometheus_view)
+            app.router.add_get("/metrics", prometheus_view)
             web.run_app(app, port=port or 8080)
         else:
             loop.run_until_complete(self.run_worker(arguments, settings, app))
@@ -102,7 +114,7 @@ class WorkerCommand(ServerCommand):
         try:
             await self._run_worker(arguments, settings, app, loop)
         except Exception:
-            logger.error('Error running worker. Exiting', exc_info=True)
+            logger.error("Error running worker. Exiting", exc_info=True)
             os._exit(1)
 
     async def _run_worker(self, arguments, settings, app, loop=None):
@@ -112,8 +124,7 @@ class WorkerCommand(ServerCommand):
         loop = loop or self.get_loop()
 
         # Run the actual worker in the same loop
-        worker = Worker(self.request, loop,
-                        arguments.max_running_tasks)
+        worker = Worker(self.request, loop, arguments.max_running_tasks)
         await worker.start()
 
         timeout = arguments.auto_kill_timeout

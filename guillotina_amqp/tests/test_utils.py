@@ -23,16 +23,13 @@ class MockPrometheusMetric:
 
 def test_metric_measure():
     # Measure with None metric just returns
-    metric_measure(None, 'foo', 'bar')
+    metric_measure(None, "foo", "bar")
 
     # Measure fills labels and observe
-    histogram = MockPrometheusMetric(['label1', 'label2'])
-    metric_measure(histogram, 20, {
-        'label1': 'foo',
-        'label2': 'bar',
-    })
+    histogram = MockPrometheusMetric(["label1", "label2"])
+    metric_measure(histogram, 20, {"label1": "foo", "label2": "bar"})
     assert histogram.labels_called
     assert histogram.observe_called
-    assert histogram._labels['label1'] == 'foo'
-    assert histogram._labels['label2'] == 'bar'
+    assert histogram._labels["label1"] == "foo"
+    assert histogram._labels["label2"] == "bar"
     assert histogram._values == [20]

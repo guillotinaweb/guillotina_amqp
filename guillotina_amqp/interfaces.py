@@ -4,8 +4,9 @@ from zope.interface import Interface
 
 class MessageType(object):
     """Encapsulates constants message types"""
-    RESULT = 'result'
-    DEBUG = 'debug'
+
+    RESULT = "result"
+    DEBUG = "debug"
 
 
 class IStateManagerUtility(Interface):
@@ -79,19 +80,19 @@ class IStateManagerUtility(Interface):
 
 
 class ITaskDefinition(Interface):
-    func = Attribute('actual function to run')
+    func = Attribute("actual function to run")
 
     async def __call__(*args, _request=None, **kwargs):
-        '''
+        """
         schedule it
-        '''
+        """
 
     def after_request(*args, _request=None, _name=None, **kwargs):
-        '''
+        """
         schedule after request
-        '''
+        """
 
     def after_commit(*args, _request=None, **kwargs):
-        '''
+        """
         schedule after commit
-        '''
+        """
