@@ -3,39 +3,27 @@ import uuid
 
 
 class MockChannel:
-
     def __init__(self):
         self.published = []
         self.acked = []
         self.nacked = []
 
     async def publish(self, *args, **kwargs):
-        self.published.append({
-            'args': args,
-            'kwargs': kwargs
-        })
+        self.published.append({"args": args, "kwargs": kwargs})
 
     async def basic_client_ack(self, *args, **kwargs):
-        self.acked.append({
-            'args': args,
-            'kwargs': kwargs
-        })
+        self.acked.append({"args": args, "kwargs": kwargs})
 
     async def basic_client_nack(self, *args, **kwargs):
-        self.nacked.append({
-            'args': args,
-            'kwargs': kwargs
-        })
+        self.nacked.append({"args": args, "kwargs": kwargs})
 
 
 class MockEnvelope:
-
     def __init__(self, uid):
         self.delivery_tag = uid
 
 
 class MockAMQPChannel:
-
     def __init__(self, protocol):
         self.protocol = protocol
         self.consumers = []
@@ -51,10 +39,12 @@ class MockAMQPChannel:
     async def queue_declare(self, queue_name, *args, **kwargs):
         if queue_name not in self.protocol.queues:
             self.protocol.queues[queue_name] = []
-        if 'arguments' in kwargs:
-            arguments = kwargs['arguments']
-            if 'x-dead-letter-routing-key' in arguments:
-                self.protocol.dead_mapping[queue_name] = arguments['x-dead-letter-routing-key']
+        if "arguments" in kwargs:
+            arguments = kwargs["arguments"]
+            if "x-dead-letter-routing-key" in arguments:
+                self.protocol.dead_mapping[queue_name] = arguments[
+                    "x-dead-letter-routing-key"
+                ]
 
     async def queue_bind(self, *args, **kwargs):
         pass
@@ -69,12 +59,16 @@ class MockAMQPChannel:
                 self.protocol.queues[queue_name] = []
                 self.unacked_messages.extend(messages)
                 for message in messages:
-                    await handler(self, message['message'],
-                                  MockEnvelope(message['id']), message['properties'])
+                    await handler(
+                        self,
+                        message["message"],
+                        MockEnvelope(message["id"]),
+                        message["properties"],
+                    )
 
     async def basic_client_ack(self, delivery_tag):
         for message in self.unacked_messages[:]:
-            if delivery_tag == message['id']:
+            if delivery_tag == message["id"]:
                 self.unacked_messages.remove(message)
                 return message
 
@@ -83,23 +77,29 @@ class MockAMQPChannel:
         if message:
             if requeue:
                 # put back on same queue
-                self.protocol.queues[message['queue']].append(message)
+                self.protocol.queues[message["queue"]].append(message)
             else:
-                new_queue = self.protocol.dead_mapping[message['queue']]
+                new_queue = self.protocol.dead_mapping[message["queue"]]
                 self.protocol.queues[new_queue].append(message)
 
     async def basic_consume(self, handler, queue_name):
-        self.consumers.append(asyncio.ensure_future(self._basic_consume(handler, queue_name)))
+        self.consumers.append(
+            asyncio.ensure_future(self._basic_consume(handler, queue_name))
+        )
 
-    async def publish(self, message, exchange_name=None, routing_key=None, properties={}):
+    async def publish(
+        self, message, exchange_name=None, routing_key=None, properties={}
+    ):
         if routing_key not in self.protocol.queues:
             self.protocol.queues[routing_key] = []
-        self.protocol.queues[routing_key].append({
-            'id': str(uuid.uuid4()),
-            'message': message,
-            'properties': properties,
-            'queue': routing_key
-        })
+        self.protocol.queues[routing_key].append(
+            {
+                "id": str(uuid.uuid4()),
+                "message": message,
+                "properties": properties,
+                "queue": routing_key,
+            }
+        )
 
     async def close(self):
         self.closed = True
@@ -107,7 +107,6 @@ class MockAMQPChannel:
 
 
 class MockAMQPTransport:
-
     def __init__(self):
         pass
 
@@ -116,7 +115,6 @@ class MockAMQPTransport:
 
 
 class MockAMQPProtocol:
-
     def __init__(self):
         self.queues = {}
         self.dead_mapping = {}

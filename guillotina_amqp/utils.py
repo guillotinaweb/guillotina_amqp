@@ -25,7 +25,7 @@ import time
 import uuid
 
 
-logger = glogging.getLogger('guillotina_amqp.utils')
+logger = glogging.getLogger("guillotina_amqp.utils")
 
 
 async def cancel_task(task_id):
@@ -40,18 +40,13 @@ async def cancel_task(task_id):
 def get_task_id_prefix():
     db = task_vars.db.get()
     container = task_vars.container.get()
-    return 'task:{}-{}-'.format(
-        db.id,
-        container.id)
+    return "task:{}-{}-".format(db.id, container.id)
 
 
 def generate_task_id():
     container = task_vars.container.get()
     if container is not None:
-        return '{}{}'.format(
-            get_task_id_prefix(),
-            str(uuid.uuid4())
-        )
+        return "{}{}".format(get_task_id_prefix(), str(uuid.uuid4()))
     return str(uuid.uuid4())
 
 
@@ -64,28 +59,29 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         _request = get_current_request()
 
     req_data = {
-        'url': str(_request.url),
-        'headers': dict(_request.headers),
-        'method': _request.method,
-        'annotations': getattr(_request, 'annotations', {})
+        "url": str(_request.url),
+        "headers": dict(_request.headers),
+        "method": _request.method,
+        "annotations": getattr(_request, "annotations", {}),
     }
     user = get_authenticated_user()
     if user is not None:
         try:
-            req_data['user'] = {
-                'id': user.id,
-                'roles': [name for name, setting in user.roles.items()
-                          if setting == Allow],
-                'groups': user.groups,
-                'headers': dict(_request.headers),
-                'data': getattr(user, 'data', {})
+            req_data["user"] = {
+                "id": user.id,
+                "roles": [
+                    name for name, setting in user.roles.items() if setting == Allow
+                ],
+                "groups": user.groups,
+                "headers": dict(_request.headers),
+                "data": getattr(user, "data", {}),
             }
         except AttributeError:
             pass
 
     container = task_vars.container.get()
     if container is not None:
-        req_data['container_url'] = IAbsoluteURL(container, _request)()
+        req_data["container_url"] = IAbsoluteURL(container, _request)()
 
     if _task_id is None:
         task_id = generate_task_id()
@@ -100,30 +96,29 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
             state = TaskState(task_id)
             dotted_name = get_dotted_name(func)
             db = task_vars.db.get()
-            logger.info(f'Scheduling task: {task_id}: {dotted_name}')
-            data = json.dumps({
-                'func': dotted_name,
-                'args': args,
-                'kwargs': kwargs,
-                'db_id': getattr(db, 'id', None),
-                'container_id': getattr(container, 'id', None),
-                'req_data': req_data,
-                'task_id': task_id
-            })
+            logger.info(f"Scheduling task: {task_id}: {dotted_name}")
+            data = json.dumps(
+                {
+                    "func": dotted_name,
+                    "args": args,
+                    "kwargs": kwargs,
+                    "db_id": getattr(db, "id", None),
+                    "container_id": getattr(container, "id", None),
+                    "req_data": req_data,
+                    "task_id": task_id,
+                }
+            )
             # Publish task data on rabbitmq
             await channel.publish(
                 data,
-                exchange_name=app_settings['amqp']['exchange'],
-                routing_key=app_settings['amqp']['queue'],
-                properties={
-                    'delivery_mode': 2
-                }
+                exchange_name=app_settings["amqp"]["exchange"],
+                routing_key=app_settings["amqp"]["queue"],
+                properties={"delivery_mode": 2},
             )
             # Update tasks's global state
             state_manager = get_state_manager()
-            await update_task_scheduled(state_manager, task_id,
-                                        updated=time.time())
-            logger.info(f'Scheduled task: {task_id}: {dotted_name}')
+            await update_task_scheduled(state_manager, task_id, updated=time.time())
+            logger.info(f"Scheduled task: {task_id}: {dotted_name}")
             return state
         except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
             await amqp.remove_connection()
@@ -137,7 +132,7 @@ async def _prepare_func(dotted_func, path, *args, **kwargs):
     try:
         ob = await navigate_to(container, path)
     except KeyError:
-        logger.warning(f'Object in {path} not found')
+        logger.warning(f"Object in {path} not found")
         raise ObjectNotFoundException
     func = resolve_dotted_name(dotted_func)
     if ITaskDefinition.providedBy(func):
@@ -156,15 +151,22 @@ async def _yield_object_task(dotted_func, path, *args, **kwargs):
         yield res
 
 
-async def add_object_task(callable=None, ob=None, *args,
-                          _request=None, _retries=3, **kwargs):
+async def add_object_task(
+    callable=None, ob=None, *args, _request=None, _retries=3, **kwargs
+):
     superfunc = _run_object_task
     if inspect.isasyncgenfunction(callable):
         # async generators need to be yielded from
         superfunc = _yield_object_task
     return await add_task(
-        superfunc, get_dotted_name(callable), get_content_path(ob), *args,
-        _request=_request, _retries=_retries, **kwargs)
+        superfunc,
+        get_dotted_name(callable),
+        get_content_path(ob),
+        *args,
+        _request=_request,
+        _retries=_retries,
+        **kwargs,
+    )
 
 
 class TimeoutLock(object):
@@ -226,5 +228,5 @@ def metric_measure(metric, value, labels=None):
         except AttributeError:
             metric.set(value)
     except Exception:
-        logger.error(f'Failed to measure metric', exc_info=True)
+        logger.error(f"Failed to measure metric", exc_info=True)
         pass

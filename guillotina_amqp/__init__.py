@@ -20,9 +20,7 @@ app_settings = {
         "max_running_tasks": 200,
         "state_ttl": 60 * 60 * 24,  # 1 day
     },
-    'commands': {
-        "amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"
-    }
+    "commands": {"amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"},
 }
 
 
@@ -30,5 +28,5 @@ def includeme(root):
     """
     custom application initialization here
     """
-    configure.scan('guillotina_amqp.permissions')
-    configure.scan('guillotina_amqp.api')
+    configure.scan("guillotina_amqp.permissions")
+    configure.scan("guillotina_amqp.api")
