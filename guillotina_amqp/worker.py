@@ -394,6 +394,12 @@ class Worker:
         """
         while True:
             await asyncio.sleep(self.update_status_interval)
+
+            diff = time.time() - self.last_activity
+            if diff > 60 * 5:
+                logger.error(f"Restarting worker because no connection activity in {diff} seconds")
+                os._exit(1)
+
             for task in self._running:
                 _id = task._job.data["task_id"]
                 ts = TaskState(_id)
