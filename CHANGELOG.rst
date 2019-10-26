@@ -1,8 +1,7 @@
 5.0.4 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Restart worker if no connection activity in last 5 minutes [lferran]
 
 5.0.3 (2019-10-25)
 ------------------
