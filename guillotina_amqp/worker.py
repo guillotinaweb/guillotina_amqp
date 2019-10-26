@@ -16,7 +16,7 @@ from guillotina_amqp.utils import metric_measure
 import asyncio
 import json
 import time
-
+import os
 
 try:
     from prometheus_client import Gauge
