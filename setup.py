@@ -35,7 +35,7 @@ setup(
             'pytest-asyncio>=0.8.0',
             'pytest-cov>=2.6.1',
             'coverage>=4.4',
-            'pytest-docker-fixtures[rabbitmq]==1.2.5',
+            'pytest-docker-fixtures[rabbitmq]==1.3.5',
         ]
     },
     license='BSD',
