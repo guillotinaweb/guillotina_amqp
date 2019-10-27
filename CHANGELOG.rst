@@ -1,4 +1,4 @@
-5.0.4 (unreleased)
+5.0.4 (2019-10-27)
 ------------------
 
 - Restart worker if no connection activity in last 5 minutes [lferran]
