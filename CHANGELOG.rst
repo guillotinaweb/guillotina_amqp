@@ -1,7 +1,7 @@
 5.0.6 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- safe exit
 
 
 5.0.5 (2019-10-27)

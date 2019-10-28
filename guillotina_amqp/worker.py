@@ -404,7 +404,7 @@ class Worker:
                 diff = time.time() - self.last_activity
                 if diff > 60 * 5:
                     logger.error(f"Exiting worker because no connection activity in {diff} seconds")
-                    os._exit(1)
+                    os._exit(0)
 
             for task in self._running:
                 _id = task._job.data["task_id"]

@@ -50,7 +50,7 @@ class EventLoopWatchdog(threading.Thread):
 
         if diff > self.timeout:
             logger.error(f"Exiting worker because no activity in {diff} seconds")
-            os._exit(1)
+            os._exit(0)
         else:
             # Schedule a check again
             threading.Timer(self.timeout / 4, self.check).start()
@@ -115,7 +115,7 @@ class WorkerCommand(ServerCommand):
             await self._run_worker(arguments, settings, app, loop)
         except Exception:
             logger.error("Error running worker. Exiting", exc_info=True)
-            os._exit(1)
+            os._exit(0)
 
     async def _run_worker(self, arguments, settings, app, loop=None):
         self.request = get_mocked_request()
