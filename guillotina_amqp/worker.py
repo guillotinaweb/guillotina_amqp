@@ -59,8 +59,9 @@ class Worker:
     total_run = 0
     total_errored = 0
     max_task_retries = 5
+    _status_task = None
 
-    def __init__(self, request=None, loop=None, max_size=None):
+    def __init__(self, request=None, loop=None, max_size=None, check_activity=True):
         self.request = request
         self.loop = loop
         self._running = []
@@ -70,6 +71,7 @@ class Worker:
         self._closing = False
         self._state_manager = None
         self._state_ttl = int(app_settings["amqp"]["state_ttl"])
+        self._check_activity = check_activity
 
         # RabbitMQ queue names defined here
         self.MAIN_EXCHANGE = app_settings["amqp"]["exchange"]
@@ -303,7 +305,7 @@ class Worker:
         await channel.basic_consume(self.handle_queued_job, queue_name=self.QUEUE_MAIN)
 
         # Start task that will update status periodically
-        asyncio.ensure_future(self.update_status())
+        self._status_task = asyncio.ensure_future(self.update_status())
 
         logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
 
@@ -377,8 +379,11 @@ class Worker:
         Cancels the worker (i.e: all its running tasks)
         """
         for task in self._running[:]:
-            task.cancel()
+            if not task.done():
+                task.cancel()
             self._running.remove(task)
+        if self._status_task is not None and not self._status_task.done():
+            self._status_task.cancel()
 
     async def join(self):
         """
@@ -395,10 +400,11 @@ class Worker:
         while True:
             await asyncio.sleep(self.update_status_interval)
 
-            diff = time.time() - self.last_activity
-            if diff > 60 * 5:
-                logger.error(f"Restarting worker because no connection activity in {diff} seconds")
-                os._exit(1)
+            if self._check_activity:
+                diff = time.time() - self.last_activity
+                if diff > 60 * 5:
+                    logger.error(f"Exiting worker because no connection activity in {diff} seconds")
+                    os._exit(1)
 
             for task in self._running:
                 _id = task._job.data["task_id"]
@@ -414,6 +420,7 @@ class Worker:
                     _id = task._job.data["task_id"]
                     if _id == val:
                         logger.warning(f"Canceling task {_id}")
-                        task.cancel()
+                        if not task.done():
+                            task.cancel()
                         self._running.remove(task)
                         await self._state_manager.clean_canceled(_id)

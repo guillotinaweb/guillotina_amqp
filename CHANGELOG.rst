@@ -1,7 +1,8 @@
 5.0.5 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Better handling in tests
+  [vangheem]
 
 
 5.0.4 (2019-10-27)

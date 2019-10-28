@@ -74,7 +74,7 @@ testing.configure_with(base_settings_configurator)
 @pytest.fixture("function")
 def amqp_worker(loop):
     # Create worker
-    _worker = Worker(loop=loop)
+    _worker = Worker(loop=loop, check_activity=False)
     _worker.update_status_interval = 2
     loop.run_until_complete(_worker.start())
 
