@@ -1,4 +1,4 @@
-5.0.5 (unreleased)
+5.0.5 (2019-10-27)
 ------------------
 
 - Better handling in tests
