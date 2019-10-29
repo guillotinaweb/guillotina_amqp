@@ -400,7 +400,7 @@ class Worker:
         while True:
             await asyncio.sleep(self.update_status_interval)
 
-            if self._check_activity:
+            if self._check_activity and len(self._running) == 0:
                 diff = time.time() - self.last_activity
                 if diff > 60 * 5:
                     logger.error(f"Exiting worker because no connection activity in {diff} seconds")
