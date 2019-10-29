@@ -1,4 +1,4 @@
-5.0.7 (unreleased)
+5.0.7 (2019-10-29)
 ------------------
 
 - Do not exit when tasks are running
