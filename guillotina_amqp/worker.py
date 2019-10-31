@@ -462,6 +462,7 @@ class Worker:
                         self._running.remove(task)
                         await self._state_manager.clean_canceled(_id)
 
+
 @guillotina_amqp.task
 async def _noop():
     """

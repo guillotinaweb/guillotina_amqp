@@ -19,6 +19,7 @@ import asyncio
 import json
 import time
 
+
 async def test_add_task(
     dummy_request,
     rabbitmq_container,
