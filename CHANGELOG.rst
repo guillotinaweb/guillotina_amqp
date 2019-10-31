@@ -1,4 +1,4 @@
-5.0.8 (unreleased)
+5.0.8 (2019-10-31)
 ------------------
 
 - Schedule NOOP tasks from worker to prevent channel from hanging
