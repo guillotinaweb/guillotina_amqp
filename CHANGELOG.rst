@@ -1,8 +1,8 @@
 5.0.8 (unreleased)
 ------------------
 
-- Nothing changed yet.
-
+- Schedule NOOP tasks from worker to prevent channel from hanging
+  [lferran]
 
 5.0.7 (2019-10-29)
 ------------------

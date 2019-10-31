@@ -17,6 +17,7 @@ from guillotina_amqp.utils import cancel_task
 
 import asyncio
 import json
+import time
 
 
 async def test_add_task(
@@ -222,6 +223,32 @@ async def test_worker_retries_should_not_exceed_the_limit(
     errored_queue = await amqp_worker.queue_errored(amqp_channel)
     assert main_queue["consumer_count"] == 1
     assert errored_queue["message_count"] == 1
+
+    task_vars.request.set(None)
+
+
+async def test_worker_sends_noop_tasks_after_inactivity(
+    dummy_request, rabbitmq_container, amqp_worker, amqp_channel
+):
+    task_vars.request.set(dummy_request)
+
+    # Simulate some time without activity
+    await asyncio.sleep(1)
+    initial_last_activity = amqp_worker.last_activity
+    assert time.time() - initial_last_activity > 1
+
+    # Start check activity task
+    amqp_worker._check_activity = True
+    amqp_worker._activity_task = asyncio.ensure_future(
+        amqp_worker.check_activity(check_every=0.3, noop_after=1, kill_after=500)
+    )
+
+    # Wait a bit for activity task to send NOOP
+    await asyncio.sleep(1.5)
+
+    # Check that the noop message triggered last_activity to update,
+    # which means NOOP task was received and executed
+    assert amqp_worker.last_activity > initial_last_activity
 
     task_vars.request.set(None)
 
