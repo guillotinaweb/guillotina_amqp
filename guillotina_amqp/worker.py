@@ -311,7 +311,6 @@ class Worker:
         # Start task that checks connection activity
         self._activity_task = asyncio.ensure_future(self.check_activity())
 
-
         logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
 
     async def queue_main(self, channel, passive=True):
