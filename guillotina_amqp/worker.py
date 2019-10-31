@@ -60,6 +60,7 @@ class Worker:
     total_errored = 0
     max_task_retries = 5
     _status_task = None
+    _activity_task = None
 
     def __init__(self, request=None, loop=None, max_size=None, check_activity=True):
         self.request = request
@@ -307,6 +308,10 @@ class Worker:
         # Start task that will update status periodically
         self._status_task = asyncio.ensure_future(self.update_status())
 
+        # Start task that checks connection activity
+        self._activity_task = asyncio.ensure_future(self.check_activity())
+
+
         logger.warning(f"Subscribed to queue: {self.QUEUE_MAIN}")
 
     async def queue_main(self, channel, passive=True):
@@ -382,8 +387,10 @@ class Worker:
             if not task.done():
                 task.cancel()
             self._running.remove(task)
-        if self._status_task is not None and not self._status_task.done():
-            self._status_task.cancel()
+
+        for task in (self._status_task, self._activity_task, ):
+            if task is not None and not task.done():
+                task.cancel()
 
     async def join(self):
         """
@@ -392,6 +399,39 @@ class Worker:
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
 
+    async def check_activity(self):
+        """Makes sure there's always activity in the connection by scheduling
+        NOOP tasks if no activity after more than 30 seconds.
+
+        It will kill the worker if no activity detected in the last 5
+        minutes, which would most likely mean that the AMQP connection
+        got stalled. This assumes deployments to ensure enough
+        replicas for worker instances, and that workers will be
+        restarted in case of being killed.
+
+        """
+        if not self._check_activity:
+            # Nothing to do
+            return
+
+        while True:
+            await asyncio.sleep(10)
+
+            if len(self._running) != 0:
+                # Tasks are running, so check again later
+                continue
+
+            # Kill worker if no activity in the last 5 minutes
+            diff = time.time() - self.last_activity
+            if diff > 60 * 5:
+                logger.error(f"Exiting worker because no connection activity in {diff} seconds")
+                os._exit(0)
+
+            # Send NOOP tasks if no activity in the last 30 seconds
+            if diff > 30:
+                # TODO: send to delay queue
+                pass
+
     async def update_status(self):
         """Updates status for running tasks and kills running tasks that have
         been canceled.
@@ -399,12 +439,6 @@ class Worker:
         """
         while True:
             await asyncio.sleep(self.update_status_interval)
-
-            if self._check_activity and len(self._running) == 0:
-                diff = time.time() - self.last_activity
-                if diff > 60 * 5:
-                    logger.error(f"Exiting worker because no connection activity in {diff} seconds")
-                    os._exit(0)
 
             for task in self._running:
                 _id = task._job.data["task_id"]
