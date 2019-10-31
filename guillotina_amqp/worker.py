@@ -400,7 +400,7 @@ class Worker:
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
 
-    async def check_activity(self, check_after_s=10, noop_after_s=30, kill_after_s=300):
+    async def check_activity(self, check_every=30, noop_after=200, kill_after=300):
         """Makes sure there's always activity in the connection by scheduling
         NOOP tasks if no activity after more than 30 seconds.
 
@@ -416,7 +416,7 @@ class Worker:
             return
 
         while True:
-            await asyncio.sleep(check_after_s)
+            await asyncio.sleep(check_every)
 
             if len(self._running) != 0:
                 # Tasks are running, so check again later
@@ -424,14 +424,14 @@ class Worker:
 
             # Kill worker if no activity in the last 5 minutes
             diff = time.time() - self.last_activity
-            if diff > kill_after_s:
+            if diff > kill_after:
                 logger.error(
                     f"Exiting worker because no connection activity in {diff} seconds"
                 )
                 os._exit(0)
 
             # Send NOOP tasks if no activity in the last 30 seconds
-            if diff > noop_after_s:
+            if diff > noop_after:
                 try:
                     await _noop()
                 except Exception:
