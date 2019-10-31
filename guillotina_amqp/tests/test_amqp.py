@@ -239,9 +239,9 @@ async def test_worker_sends_noop_tasks_after_inactivity(
 
     # Start check activity task
     amqp_worker._check_activity = True
-    amqp_worker._activity_task = asyncio.ensure_future(amqp_worker.check_activity(
-        check_after_s=0.3, noop_after_s=1, kill_after_s=500
-    ))
+    amqp_worker._activity_task = asyncio.ensure_future(
+        amqp_worker.check_activity(check_after_s=0.3, noop_after_s=1, kill_after_s=500)
+    )
 
     # Wait a bit for activity task to send NOOP
     await asyncio.sleep(1.5)

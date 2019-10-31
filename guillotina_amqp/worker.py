@@ -12,12 +12,13 @@ from guillotina_amqp.state import update_task_errored
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_scheduled
 from guillotina_amqp.utils import metric_measure
-import guillotina_amqp
 
 import asyncio
+import guillotina_amqp
 import json
-import time
 import os
+import time
+
 
 try:
     from prometheus_client import Gauge
@@ -388,7 +389,7 @@ class Worker:
                 task.cancel()
             self._running.remove(task)
 
-        for task in (self._status_task, self._activity_task, ):
+        for task in (self._status_task, self._activity_task):
             if task is not None and not task.done():
                 task.cancel()
 
@@ -424,7 +425,9 @@ class Worker:
             # Kill worker if no activity in the last 5 minutes
             diff = time.time() - self.last_activity
             if diff > kill_after_s:
-                logger.error(f"Exiting worker because no connection activity in {diff} seconds")
+                logger.error(
+                    f"Exiting worker because no connection activity in {diff} seconds"
+                )
                 os._exit(0)
 
             # Send NOOP tasks if no activity in the last 30 seconds
