@@ -12,6 +12,7 @@ from guillotina_amqp.state import update_task_errored
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_scheduled
 from guillotina_amqp.utils import metric_measure
+import guillotina_amqp
 
 import asyncio
 import json
@@ -253,7 +254,7 @@ class Worker:
             result = task.result()
             logger.debug(f"Task data: {task._job.data}, result: {result}")
         except asyncio.CancelledError:
-            logger.warning(f"Task got cancelled: {task._job.data}", exc_info=True)
+            logger.warning(f"Task got cancelled: {task._job.data}")
             return await self._handle_canceled(task)
         except Exception:
             logger.error(f"Unhandled task exception: {task_id}", exc_info=True)
@@ -398,7 +399,7 @@ class Worker:
         while len(self._running) > 0:
             await asyncio.sleep(0.01)
 
-    async def check_activity(self):
+    async def check_activity(self, check_after_s=10, noop_after_s=30, kill_after_s=300):
         """Makes sure there's always activity in the connection by scheduling
         NOOP tasks if no activity after more than 30 seconds.
 
@@ -414,7 +415,7 @@ class Worker:
             return
 
         while True:
-            await asyncio.sleep(10)
+            await asyncio.sleep(check_after_s)
 
             if len(self._running) != 0:
                 # Tasks are running, so check again later
@@ -422,14 +423,17 @@ class Worker:
 
             # Kill worker if no activity in the last 5 minutes
             diff = time.time() - self.last_activity
-            if diff > 60 * 5:
+            if diff > kill_after_s:
                 logger.error(f"Exiting worker because no connection activity in {diff} seconds")
                 os._exit(0)
 
             # Send NOOP tasks if no activity in the last 30 seconds
-            if diff > 30:
-                # TODO: send to delay queue
-                pass
+            if diff > noop_after_s:
+                try:
+                    await _noop()
+                except Exception:
+                    logger.error(f"Error scheduling NOOP task", exc_info=True)
+                    pass
 
     async def update_status(self):
         """Updates status for running tasks and kills running tasks that have
@@ -457,3 +461,11 @@ class Worker:
                             task.cancel()
                         self._running.remove(task)
                         await self._state_manager.clean_canceled(_id)
+
+@guillotina_amqp.task
+async def _noop():
+    """
+    Does nothing at all
+    """
+    logger.debug("NOOP task executed")
+    return

@@ -173,7 +173,7 @@ class Job:
                 await commit()
                 request.execute_futures()
             except Exception:
-                logger.warning("Error commiting job", exc_info=True)
+                logger.error("Error commiting job", exc_info=True)
                 raise
             return result
         except ObjectNotFoundException:
@@ -186,7 +186,7 @@ class Job:
             try:
                 await abort()
             except Exception:
-                logger.warning("Error aborting job", exc_info=True)
+                logger.error("Error aborting job", exc_info=True)
 
     def get_function_to_run(self):
         func = resolve_dotted_name(self.data["func"])
