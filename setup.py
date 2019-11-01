@@ -23,6 +23,7 @@ setup(
     url='https://github.com/guillotinaweb/guillotina_amqp',
     packages=find_packages(exclude=['demo']),
     include_package_data=True,
+    package_data={"": ["*.txt", "*.rst"], "guillotina_amqp": ["py.typed"]},
     tests_require=[
         'pytest'
     ],
