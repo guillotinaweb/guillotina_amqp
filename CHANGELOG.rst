@@ -1,7 +1,7 @@
 5.0.11 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- add py.typed to manifest
 
 
 5.0.10 (2019-11-05)

@@ -1,3 +1,7 @@
 include *.json
 include *.rst
 include Makefile
+
+# added by check_manifest.py
+include LICENSE
+recursive-include guillotina_amqp *.typed
