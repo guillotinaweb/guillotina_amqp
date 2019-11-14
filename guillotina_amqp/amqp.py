@@ -74,13 +74,7 @@ async def get_connection(name="default"):
     if name in connections:
         connection = connections[name]
         return connection["channel"], connection["transport"], connection["protocol"]
-    try:
-        channel, transport, protocol = await connect()
-    except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
-        logger.error("Error connecting to rabbitmq", exc_info=True)
-        await remove_connection(name)
-        # Raise so this is retried
-        raise
+    channel, transport, protocol = await connect()
 
     connections[name] = {
         "channel": channel,
