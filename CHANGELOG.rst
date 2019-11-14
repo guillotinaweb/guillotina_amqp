@@ -1,7 +1,7 @@
 5.0.12 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Retry if rabbitmq is down when getting new connections [lferran]
 
 
 5.0.11 (2019-11-05)

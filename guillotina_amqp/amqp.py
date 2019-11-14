@@ -5,6 +5,7 @@ from guillotina.utils import resolve_dotted_name
 import aioamqp
 import aioamqp.exceptions
 import asyncio
+import backoff
 
 
 logger = glogging.getLogger("guillotina_amqp")
@@ -60,6 +61,11 @@ async def heartbeat():
             logger.error("Error sending heartbeat", exc_info=True)
 
 
+@backoff.on_exception(
+    backoff.expo,
+    (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed),
+    max_tries=4,
+)
 async def get_connection(name="default"):
     amqp_settings = app_settings["amqp"]
     if "connections" not in amqp_settings:
@@ -68,7 +74,12 @@ async def get_connection(name="default"):
     if name in connections:
         connection = connections[name]
         return connection["channel"], connection["transport"], connection["protocol"]
-    channel, transport, protocol = await connect()
+    try:
+        channel, transport, protocol = await connect()
+    except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
+        await remove_connection(name)
+        # Raise so this is retried
+        raise
 
     connections[name] = {
         "channel": channel,
