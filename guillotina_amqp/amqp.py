@@ -77,6 +77,7 @@ async def get_connection(name="default"):
     try:
         channel, transport, protocol = await connect()
     except (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed):
+        logger.error("Error connecting to rabbitmq", exc_info=True)
         await remove_connection(name)
         # Raise so this is retried
         raise
