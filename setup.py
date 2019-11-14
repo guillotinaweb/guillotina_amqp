@@ -16,7 +16,8 @@ setup(
         'guillotina>=5.0.0.dev0,<6',
         'aioamqp',
         'lru-dict',
-        'aioredis'
+        'aioredis',
+        'backoff',
     ],
     author='Nathan Van Gheem',
     author_email='vangheem@gmail.com',
@@ -31,7 +32,6 @@ setup(
         'test': [
             'pytest>=4.1.1',
             'docker',
-            'backoff',
             'psycopg2-binary',
             'pytest-asyncio>=0.8.0',
             'pytest-cov>=2.6.1',
