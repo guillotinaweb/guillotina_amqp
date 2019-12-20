@@ -1,8 +1,7 @@
 5.0.13 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- Retry ConnectionResetError on redis [lferran]
 
 5.0.12 (2019-11-14)
 -------------------

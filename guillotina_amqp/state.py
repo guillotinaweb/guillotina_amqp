@@ -10,6 +10,7 @@ from guillotina_amqp.interfaces import IStateManagerUtility
 from lru import LRU
 
 import asyncio
+import backoff
 import copy
 import json
 import time
@@ -187,7 +188,7 @@ class RedisStateManager:
             return None
 
         if "redis" in app_settings:
-            self._cache = aioredis.Redis((await redis.get_driver()).pool)
+            self._cache = RetriableRedis((await redis.get_driver()).pool)
             return self._cache
         else:
             self._cache = _EMPTY
@@ -300,7 +301,8 @@ class RedisStateManager:
         return False
 
     async def _clean(self):
-        await self._cache.flushall()
+        cache = await self.get_cache()
+        await cache.flushall()
 
 
 class TaskState:
@@ -475,3 +477,33 @@ async def update_task_running(
         result=result,
         **kwargs,
     )
+
+
+REDIS_RETRIABLE_EXCEPTIONS = (ConnectionResetError,)
+
+
+class RetriableRedis(aioredis.Redis):
+    def __getattribute__(self, name):
+        original = super().__getattribute__(name)
+
+        if name in (
+            "get",
+            "set",
+            "expire",
+            "setnx",
+            "delete",
+            "zadd",
+            "zrem",
+            "flushall",
+        ):
+            return retriable_func(original)
+
+        return original
+
+
+def retriable_func(func):
+    @backoff.on_exception(backoff.expo, REDIS_RETRIABLE_EXCEPTIONS, max_tries=4)
+    async def decorated_func(*args, **kw):
+        return await func(*args, **kw)
+
+    return decorated_func
