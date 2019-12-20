@@ -2,6 +2,7 @@ from guillotina_amqp.exceptions import TaskAccessUnauthorized
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.state import get_state_manager
 
+import asynctest
 import asyncio
 import pytest
 
@@ -124,3 +125,23 @@ async def test_task_state_disappears_after_ttl(redis_state_manager, loop):
     data = await state_manager.get("foo")
     assert not data
     await clear_cache(state_manager)
+
+
+class MockedRedisGET:
+    def __init__(self):
+        self.called = 0
+
+    async def __call__(self, *args, **kw):
+        self.called += 1
+        raise ConnectionResetError
+
+
+async def test_connection_reset_errors_are_retried(redis_state_manager, loop):
+    state_manager = get_state_manager(loop)
+    mocked = MockedRedisGET()
+    with asynctest.mock.patch("guillotina_amqp.state.aioredis.Redis.get", new=mocked):
+
+        with pytest.raises(ConnectionResetError):
+            data = await state_manager.get("foo")
+
+        assert mocked.called == 4
