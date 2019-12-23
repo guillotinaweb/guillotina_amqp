@@ -63,7 +63,11 @@ async def heartbeat():
 
 @backoff.on_exception(
     backoff.expo,
-    (aioamqp.AmqpClosedConnection, aioamqp.exceptions.ChannelClosed),
+    (
+        aioamqp.AmqpClosedConnection,
+        aioamqp.exceptions.ChannelClosed,
+        asyncio.TimeoutError,
+    ),
     max_tries=4,
 )
 async def get_connection(name="default"):
@@ -74,6 +78,7 @@ async def get_connection(name="default"):
     if name in connections:
         connection = connections[name]
         return connection["channel"], connection["transport"], connection["protocol"]
+
     channel, transport, protocol = await connect()
 
     connections[name] = {
