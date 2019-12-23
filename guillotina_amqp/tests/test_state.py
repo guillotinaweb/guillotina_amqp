@@ -142,6 +142,6 @@ async def test_connection_reset_errors_are_retried(redis_state_manager, loop):
     with asynctest.mock.patch("guillotina_amqp.state.aioredis.Redis.get", new=mocked):
 
         with pytest.raises(ConnectionResetError):
-            data = await state_manager.get("foo")
+            await state_manager.get("foo")
 
         assert mocked.called == 4
