@@ -1,4 +1,4 @@
-5.0.15 (unreleased)
+5.0.15 (2019-12-23)
 -------------------
 
 - Retry rabbitQM TimeoutErrors [lferran]
