@@ -1,7 +1,7 @@
 5.0.16 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Fix after commit handler [vangheem]
 
 
 5.0.15 (2019-12-23)

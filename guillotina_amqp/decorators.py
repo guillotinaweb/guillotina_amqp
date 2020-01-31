@@ -30,18 +30,21 @@ class TaskDefinition:
                 request = get_current_request()
         return request
 
-    def after_request(self, *args, _request=None, _name=None, **kwargs):
+    def after_request(self, *args, _request=None, _name=None, **kwargs) -> str:
         request = self._get_request(_request, kwargs)
         kwargs["_request"] = request
         if _name is None:
             _name = str(uuid.uuid4())
         request.add_future(_name, partial(self.schedule, *args, **kwargs))
+        return _name
 
     def after_commit(self, *args, _request=None, **kwargs):
-        request = self._get_request(_request, kwargs)
-        txn = get_transaction(request)
-        kwargs["_request"] = request
-        txn.add_after_commit_hook(self.schedule, args=args, kwargs=kwargs)
+        txn = get_transaction()
+        txn.add_after_commit_hook(partial(self.schedule, *args, **kwargs))
+
+    def before_commit(self, *args, _request=None, **kwargs):
+        txn = get_transaction()
+        txn.add_before_commit_hook(partial(self.schedule, *args, **kwargs))
 
 
 class ObjectTaskDefinition(TaskDefinition):
