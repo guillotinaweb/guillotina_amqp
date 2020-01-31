@@ -1,4 +1,4 @@
-5.0.16 (unreleased)
+5.0.16 (2020-01-31)
 -------------------
 
 - Fix after commit handler [vangheem]
