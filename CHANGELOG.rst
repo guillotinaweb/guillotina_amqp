@@ -1,4 +1,4 @@
-5.0.17 (unreleased)
+5.0.17 (2020-02-15)
 -------------------
 
 - Fix unsafe thread operation: creating asyncio task from another thread
