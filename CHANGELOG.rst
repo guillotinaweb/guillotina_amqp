@@ -1,8 +1,8 @@
 5.0.17 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- Fix unsafe thread operation: creating asyncio task from another thread
+  [vangheem]
 
 5.0.16 (2020-01-31)
 -------------------

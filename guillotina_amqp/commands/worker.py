@@ -26,48 +26,27 @@ async def prometheus_view(request):
     return web.Response(text=output.decode("utf8"))
 
 
-class EventLoopWatchdog(threading.Thread):
-    """Takes care of exiting worker after specified loop no-activity
-    timeout for the worker loop.
+def loop_check(loop, timeout):
+    # Elapsed time since last update
+    diff = loop.time() - getattr(loop, '__ping_time__', 0)
 
-    This prevents a task from taking over the asynio loop forever and
-    preventing other tasks to run.
+    if diff > timeout:
+        logger.error(f"Exiting worker because no activity in {diff} seconds")
+        os._exit(0)
+    else:
+        # Schedule a check again
+        threading.Timer(timeout / 4, loop_check, args=[loop, timeout]).start()
+        logger.debug(f"Last refreshed watchdog was {diff}s. ago")
 
-    If a task hangs, the watchdog will exit the worker and unfinished jobs
-    will be taken by other workers.
+
+async def loop_probe(loop):
+    """This method is used to trigger a context switching in the event
+    loop and measure elapsed time between runs (10s)
     """
-
-    def __init__(self, loop, timeout):
-        super().__init__()
-        self.loop = loop
-        self.timeout = timeout * 60  # In seconds
-        # Start time
-        self._time = loop.time()
-
-    def check(self):
-        # Elapsed time since last update
-        diff = self.loop.time() - self._time
-
-        if diff > self.timeout:
-            logger.error(f"Exiting worker because no activity in {diff} seconds")
-            os._exit(0)
-        else:
-            # Schedule a check again
-            threading.Timer(self.timeout / 4, self.check).start()
-            logger.debug(f"Last refreshed watchdog was {diff}s. ago")
-
-    async def probe(self):
-        """This method is used to trigger a context switching in the event
-        loop and measure elapsed time between runs (10s)
-        """
-        while True:
-            await asyncio.sleep(10)
-            # Update the watchdog time
-            self._time = self.loop.time()
-
-    def run(self):
-        self.loop.create_task(self.probe())
-        threading.Timer(self.timeout / 4, self.check).start()
+    while True:
+        # Update the watchdog time
+        loop.__ping_time__ = loop.time()
+        await asyncio.sleep(10)
 
 
 class WorkerCommand(ServerCommand):
@@ -129,9 +108,9 @@ class WorkerCommand(ServerCommand):
 
         timeout = arguments.auto_kill_timeout
         if timeout > 0:
+            loop.create_task(loop_probe(loop))
             # We need to run this outside the main loop and the current thread
-            thread = EventLoopWatchdog(loop, timeout)
-            thread.start()
+            threading.Timer(timeout / 4, loop_check, args=[loop, timeout]).start()
 
         while True:
             # make this run forever...
