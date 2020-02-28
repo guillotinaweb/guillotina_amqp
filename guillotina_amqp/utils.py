@@ -100,7 +100,7 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
             logger.warning(
                 f"Could not schedule {dotted_name}, AMQP settings not configured"
             )
-            break
+            return
         try:
             state = TaskState(task_id)
             db = task_vars.db.get()
