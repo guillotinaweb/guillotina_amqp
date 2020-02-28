@@ -1,4 +1,4 @@
-5.0.18 (unreleased)
+5.0.18 (2020-02-28)
 -------------------
 
 - Handle KeyError when attempting to queue tasks but amqp settings are
