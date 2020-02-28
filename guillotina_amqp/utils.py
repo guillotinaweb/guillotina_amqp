@@ -12,6 +12,7 @@ from guillotina.utils import resolve_dotted_name
 from guillotina.utils.misc import get_current_container
 from guillotina_amqp import amqp
 from guillotina_amqp.exceptions import ObjectNotFoundException
+from guillotina_amqp.exceptions import AMQPConfigurationNotFoundError
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
@@ -88,13 +89,20 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
     else:
         task_id = _task_id
 
+    dotted_name = get_dotted_name(func)
+
     retries = 0
     while True:
         # Get the rabbitmq connection
-        channel, transport, protocol = await amqp.get_connection()
+        try:
+            channel, transport, protocol = await amqp.get_connection()
+        except AMQPConfigurationNotFoundError:
+            logger.warning(
+                f"Could not schedule {dotted_name}, AMQP settings not configured"
+            )
+            break
         try:
             state = TaskState(task_id)
-            dotted_name = get_dotted_name(func)
             db = task_vars.db.get()
             logger.info(f"Scheduling task: {task_id}: {dotted_name}")
             data = json.dumps(

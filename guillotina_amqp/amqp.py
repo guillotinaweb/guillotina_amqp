@@ -1,7 +1,7 @@
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina.utils import resolve_dotted_name
-
+from guillotina_amqp.exceptions import AMQPConfigurationNotFoundError
 import aioamqp
 import aioamqp.exceptions
 import asyncio
@@ -71,7 +71,11 @@ async def heartbeat():
     max_tries=4,
 )
 async def get_connection(name="default"):
-    amqp_settings = app_settings["amqp"]
+    try:
+        amqp_settings = app_settings["amqp"]
+    except KeyError:
+        raise AMQPConfigurationNotFoundError()
+
     if "connections" not in amqp_settings:
         amqp_settings["connections"] = {}
     connections = amqp_settings["connections"]

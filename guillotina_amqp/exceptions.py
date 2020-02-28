@@ -24,3 +24,7 @@ class TaskMaxRetriesReached(Exception):
 
 class ObjectNotFoundException(Exception):
     pass
+
+
+class AMQPConfigurationNotFoundError(Exception):
+    pass

@@ -1,8 +1,8 @@
 5.0.18 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- Handle KeyError when attempting to queue tasks but amqp settings are
+  not present [lferran]
 
 5.0.17 (2020-02-15)
 -------------------
