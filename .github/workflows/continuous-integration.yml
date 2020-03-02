@@ -36,4 +36,4 @@ jobs:
         run: |
           # Install package with test dependecies
           pip install -e .[test]
-          pytest -s cov==guillotina_amqp -s --tb=native -v --cov-report term-missing --cov-append guillotina_amqp
+          pytest --capture=no --tb=native -v guillotina_amqp
