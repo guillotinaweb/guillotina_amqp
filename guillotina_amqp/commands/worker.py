@@ -28,7 +28,7 @@ async def prometheus_view(request):
 
 def loop_check(loop, timeout):
     # Elapsed time since last update
-    diff = loop.time() - getattr(loop, '__ping_time__', 0)
+    diff = loop.time() - getattr(loop, "__ping_time__", 0)
 
     if diff > timeout:
         logger.error(f"Exiting worker because no activity in {diff} seconds")

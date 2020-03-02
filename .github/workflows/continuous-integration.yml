@@ -20,22 +20,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Linters
-      - name: Checking pep8
+      # Linters and typing
+      - name: Pre-checks
         run: |
-          # Install flake8
-          pip install flake8
+          # Install
+          pip install flake8 isort black mypy mypy_zope
 
-          # Run it
+          # Run commands
           flake8 guillotina_amqp --config=setup.cfg
-
-      # Typing
-      - name: Checking type annotations
-        run: |
-          # Install mypy
-          pip install mypy mypy_zope
-
-          # Run it
+          isort -c -rc guillotina_amqp
+          black --check --verbose guillotina_amqp
           mypy -p guillotina_amqp --ignore-missing-imports
 
       # Run tests
