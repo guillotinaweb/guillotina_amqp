@@ -11,7 +11,7 @@ jobs:
         python-version: [3.7]
 
     steps:
-      # Checkout the repo first
+      # Checkout the repository first
       - uses: actions/checkout@v2
 
       # Setup the python version
@@ -20,10 +20,8 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Install dependencies
-
       # Linters
-      - name: Lint with flake8
+      - name: Checking pep8
         run: |
           # Install flake8
           pip install flake8
@@ -31,9 +29,20 @@ jobs:
           # Run it
           flake8 guillotina_amqp --config=setup.cfg
 
+      # Typing
+      - name: Checking type annotations
+        run: |
+          # Install mypy
+          pip install mypy mypy_zope
+
+          # Run it
+          mypy -p guillotina_amqp --ignore-missing-imports
+
       # Run tests
       - name: Run tests
         run: |
           # Install package with test dependecies
           pip install -e .[test]
+
+          # Run tests
           pytest --capture=no --tb=native -v guillotina_amqp
