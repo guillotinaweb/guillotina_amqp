@@ -45,4 +45,4 @@ jobs:
           pip install -e .[test]
 
           # Run tests
-          pytest --capture=no --tb=native -v guillotina_amqp
+          pytest --capture=no --tb=native -v guillotina_amqp --cov=guillotina_amqp --cov-report term-missing --cov-append guillotina_amqp
