@@ -28,10 +28,10 @@ Example docs
             "password": "guest",
             "vhost": "/",
             "heartbeat": 800,
-            "queue": "guillotina",  # Main consuming queue for workers
+            "queue": "guillotina",
             "persistent_manager": "redis",
-            "delayed_ttl_ms": 60 * 1000,
-            "errored_ttl_ms": 1000 * 60 * 60 * 24 * 7,
+            "delayed_ttl_ms": 60000,
+            "errored_ttl_ms": 604800000,
         }
     }
 ```
