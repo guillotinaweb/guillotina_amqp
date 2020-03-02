@@ -1,3 +1,6 @@
+![](https://github.com/guillotinaweb/guillotina_amqp/.github/workflows/continuous-integration.yml/badge.svg)
+
+
 # Plugin documentation
 
 This plugin integrates aioamqp into guillotina, providing an execution framework for asyncio tasks:
