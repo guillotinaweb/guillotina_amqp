@@ -11,8 +11,8 @@ from guillotina.utils import navigate_to
 from guillotina.utils import resolve_dotted_name
 from guillotina.utils.misc import get_current_container
 from guillotina_amqp import amqp
-from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.exceptions import AMQPConfigurationNotFoundError
+from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState

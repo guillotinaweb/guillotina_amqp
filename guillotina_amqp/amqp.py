@@ -2,6 +2,7 @@ from guillotina import app_settings
 from guillotina import glogging
 from guillotina.utils import resolve_dotted_name
 from guillotina_amqp.exceptions import AMQPConfigurationNotFoundError
+
 import aioamqp
 import aioamqp.exceptions
 import asyncio

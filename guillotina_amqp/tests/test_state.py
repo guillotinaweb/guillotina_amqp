@@ -2,8 +2,8 @@ from guillotina_amqp.exceptions import TaskAccessUnauthorized
 from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.state import get_state_manager
 
-import asynctest
 import asyncio
+import asynctest
 import pytest
 
 
