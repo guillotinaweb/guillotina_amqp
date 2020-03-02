@@ -1,4 +1,6 @@
-guillotina_amqp Docs
+https://github.com/guillotinaweb/guillotina_amqp/workflows/continuous-integration/badge.svg
+
+guillotina_amqp docs
 --------------------
 
 Integrates aioamqp into guillotina, providing an execution framework
