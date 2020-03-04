@@ -3,6 +3,7 @@ from guillotina.tests.utils import get_container
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.utils import add_task
+
 import asynctest
 
 
@@ -83,7 +84,9 @@ async def test_cancel_task(container_requester, dummy_request):
 
 
 @asynctest.patch("guillotina_amqp.api.can_debug_amqp")
-async def test_info_task_filtered_response(can_debug_amqp, container_requester, dummy_request):
+async def test_info_task_filtered_response(
+    can_debug_amqp, container_requester, dummy_request
+):
     async with container_requester as requester:
         task_vars.request.set(dummy_request)
         task_vars.db.set(requester.db)
