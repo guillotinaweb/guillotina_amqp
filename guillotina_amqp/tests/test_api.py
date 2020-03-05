@@ -1,7 +1,10 @@
 from guillotina import task_vars
 from guillotina.tests.utils import get_container
+from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.utils import add_task
+
+import asynctest
 
 
 async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
@@ -78,3 +81,36 @@ async def test_cancel_task(container_requester, dummy_request):
         assert status == 404
 
     task_vars.request.set(None)
+
+
+@asynctest.patch("guillotina_amqp.api.can_debug_amqp")
+async def test_info_task_filtered_response(
+    can_debug_amqp, container_requester, dummy_request
+):
+    async with container_requester as requester:
+        task_vars.request.set(dummy_request)
+        task_vars.db.set(requester.db)
+        await get_container(requester=requester)
+
+        # Add some tasks first
+        t1 = await add_task(_test_func, 1, 2)
+
+        # Update task with job data
+        state_manager = get_state_manager()
+        await state_manager.update(t1.task_id, {"job_data": {"foo": "bar"}})
+
+        # When the user has debug permission, the response contains job_data
+        can_debug_amqp.return_value = True
+        resp, status = await requester(
+            "GET", f"/db/guillotina/@amqp-tasks/{t1.task_id}"
+        )
+        assert status == 200
+        assert "job_data" in resp
+
+        # When the user has not debug permission, the response does not contain job_data
+        can_debug_amqp.return_value = False
+        resp, status = await requester(
+            "GET", f"/db/guillotina/@amqp-tasks/{t1.task_id}"
+        )
+        assert status == 200
+        assert "job_data" not in resp

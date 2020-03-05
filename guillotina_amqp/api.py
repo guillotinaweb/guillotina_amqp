@@ -5,6 +5,12 @@ from .utils import get_task_id_prefix
 from guillotina import configure
 from guillotina.interfaces import IContainer
 from guillotina.response import HTTPNotFound
+from guillotina.utils import get_security_policy
+
+
+def can_debug_amqp(context: IContainer) -> bool:
+    security = get_security_policy()
+    return security.check_permission("guillotina.DebugAMQP", context)
 
 
 @configure.service(
@@ -51,7 +57,10 @@ async def info_task(context, request):
         return HTTPNotFound(content={"reason": "Task not found"})
     try:
         task = TaskState(request.matchdict["task_id"])
-        return await task.get_state()
+        state = await task.get_state()
+        if not can_debug_amqp(context):
+            state.pop("job_data", None)
+        return state
     except TaskNotFoundException:
         return HTTPNotFound(content={"reason": "Task not found"})
 
