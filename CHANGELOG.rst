@@ -1,7 +1,7 @@
 5.0.19 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Filter job_data in task info if the requester is not root [acatlla]
 
 
 5.0.18 (2020-02-28)
