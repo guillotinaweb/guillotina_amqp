@@ -1,4 +1,4 @@
-5.0.20 (unreleased)
+5.0.20 (2020-03-09)
 -------------------
 
 - Ack canceled tasks so they are cleaned up from the main queue
