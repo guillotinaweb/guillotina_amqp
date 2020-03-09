@@ -1,7 +1,6 @@
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina_amqp import amqp
-from guillotina_amqp.exceptions import TaskAlreadyAcquired
 from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
@@ -135,10 +134,9 @@ class Worker:
             await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
             return
 
-        try:
-            await ts.acquire()
-        except TaskAlreadyAcquired:
+        if not await ts.acquire():
             logger.warning(f"Task {_id} is already running in another worker")
+            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
             return
 
         # Record job's data into global state
