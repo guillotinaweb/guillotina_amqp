@@ -1,7 +1,8 @@
 5.0.20 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Ack canceled tasks so they are cleaned up from the main queue
+  [lferran]
 
 
 5.0.19 (2020-03-05)

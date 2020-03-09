@@ -135,19 +135,11 @@ async def amqp_channel():
     return channel
 
 
-IS_TRAVIS = "TRAVIS" in os.environ
-
-
 @pytest.fixture(scope="session")
 def rabbitmq_runner():
-    if IS_TRAVIS:
-        host = "127.0.0.1"
-        port = 5672
-    else:
-        host, port = rabbitmq_image.run()
+    host, port = rabbitmq_image.run()
     yield host, port
-    if not IS_TRAVIS:
-        rabbitmq_image.stop()
+    rabbitmq_image.stop()
 
 
 @pytest.fixture("function")
