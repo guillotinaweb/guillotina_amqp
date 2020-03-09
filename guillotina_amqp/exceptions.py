@@ -10,10 +10,6 @@ class TaskAlreadyAcquired(Exception):
     pass
 
 
-class TaskAlreadyCanceled(Exception):
-    pass
-
-
 class TaskAccessUnauthorized(Exception):
     pass
 

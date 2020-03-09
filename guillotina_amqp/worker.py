@@ -1,8 +1,6 @@
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina_amqp import amqp
-from guillotina_amqp.exceptions import TaskAlreadyAcquired
-from guillotina_amqp.exceptions import TaskAlreadyCanceled
 from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
@@ -132,13 +130,14 @@ class Worker:
         # Cancelation
         if await ts.is_canceled():
             logger.warning(f"Task {_id} has already been canceled")
-            raise TaskAlreadyCanceled(_id)
+            # Ack so that canceled job is removed from main queue
+            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+            return
 
-        try:
-            await ts.acquire()
-        except TaskAlreadyAcquired:
+        if not await ts.acquire():
             logger.warning(f"Task {_id} is already running in another worker")
-            # TODO: ACK task
+            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+            return
 
         # Record job's data into global state
         await self.state_manager.update(task_id, {"job_data": job.data})

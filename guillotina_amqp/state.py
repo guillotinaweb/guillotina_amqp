@@ -69,7 +69,7 @@ class MemoryStateManager:
         for task_id in self._data.keys():
             yield task_id
 
-    async def acquire(self, task_id, ttl):
+    async def acquire(self, task_id: str, ttl: int) -> None:
         already_locked = await self.is_locked(task_id)
         if already_locked:
             raise TaskAlreadyAcquired(task_id)
@@ -227,7 +227,7 @@ class RedisStateManager:
         async for key in cache.iscan(match=f"{self._cache_prefix}*"):
             yield key.decode().replace(self._cache_prefix, "")
 
-    async def acquire(self, task_id, ttl):
+    async def acquire(self, task_id: str, ttl: int) -> None:
         if await self.is_locked(task_id):
             raise TaskAlreadyAcquired(task_id)
 
@@ -368,7 +368,7 @@ class TaskState:
         # Cancel it
         return await util.cancel(self.task_id)
 
-    async def acquire(self, ttl=DEFAULT_LOCK_TTL_S):
+    async def acquire(self, ttl=DEFAULT_LOCK_TTL_S) -> bool:
         util = get_state_manager()
         try:
             await util.acquire(self.task_id, ttl)
