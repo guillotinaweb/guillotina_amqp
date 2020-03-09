@@ -1,7 +1,8 @@
-from guillotina_amqp.worker import Worker
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.tests.mocks import MockChannel
 from guillotina_amqp.tests.mocks import MockEnvelope
+from guillotina_amqp.worker import Worker
+
 import json
 
 
