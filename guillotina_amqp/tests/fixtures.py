@@ -4,7 +4,6 @@ from guillotina_amqp import amqp
 from guillotina_amqp.worker import Worker
 from pytest_docker_fixtures.containers.rabbitmq import rabbitmq_image
 
-import os
 import pytest
 import uuid
 
