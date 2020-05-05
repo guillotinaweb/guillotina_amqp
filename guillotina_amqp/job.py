@@ -1,5 +1,3 @@
-from aiohttp import test_utils
-from aiohttp.helpers import noop
 from datetime import datetime
 from guillotina import glogging
 from guillotina import task_vars as g_task_vars
@@ -24,14 +22,10 @@ from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
 from guillotina_amqp.utils import _yield_object_task
-from multidict import CIMultiDict
-from unittest import mock
-from urllib.parse import urlparse
 from zope.interface import alsoProvides
 
 import inspect
 import time
-import yarl
 
 
 logger = glogging.getLogger("guillotina_amqp.job")
@@ -94,42 +88,16 @@ class Job:
         return self._state_manager
 
     async def create_request(self):
-        req_data = self.data["req_data"]
-        url = req_data["url"]
-        parsed = urlparse(url)
-        dct = {
-            "method": req_data["method"],
-            "url": yarl.URL(url),
-            "path": parsed.path,
-            "headers": CIMultiDict(req_data["headers"]),
-            "raw_headers": tuple(
-                (k.encode("utf-8"), v.encode("utf-8"))
-                for k, v in req_data["headers"].items()
-            ),
-        }
-
-        message = self.base_request._message._replace(**dct)
-
-        payload_writer = mock.Mock()
-        payload_writer.write_eof.side_effect = noop
-        payload_writer.drain.side_effect = noop
-
-        protocol = mock.Mock()
-        protocol.transport = test_utils._create_transport(None)
-        protocol.writer = payload_writer
-
         request = self.base_request.__class__(
-            message,
-            EmptyPayload(),
-            protocol,
-            payload_writer,
-            self.task,
-            self.task._loop,
+            self.base_request.scheme,
+            self.base_request.method,
+            self.base_request.path,
+            self.base_request.query_string.encode("utf-8"),
+            self.base_request.raw_headers.copy(),
             client_max_size=self.base_request._client_max_size,
-            state=self.base_request._state.copy(),
         )
+        request._state = self.base_request._state.copy()
         g_task_vars.request.set(request)
-        request.annotations = req_data.get("annotations", {})
 
         if self.data.get("db_id"):
             root = get_utility(IApplication, name="root")

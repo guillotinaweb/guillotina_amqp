@@ -1,8 +1,9 @@
-5.0.21 (unreleased)
+6.0.0 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- Moved to guillotina 6 and python 3.8
+- Moved away from travis and use github actions
+ [lferran]
 
 5.0.20 (2020-03-09)
 -------------------

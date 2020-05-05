@@ -71,23 +71,23 @@ testing.configure_with(base_settings_configurator)
 
 
 @pytest.fixture("function")
-def amqp_worker(loop):
+def amqp_worker(event_loop):
     # Create worker
-    _worker = Worker(loop=loop, check_activity=False)
+    _worker = Worker(loop=event_loop, check_activity=False)
     _worker.update_status_interval = 2
-    loop.run_until_complete(_worker.start())
+    event_loop.run_until_complete(_worker.start())
 
     yield _worker
 
     # Tear down worker
     for conn in [v for v in app_settings["amqp"].get("connections", []).values()]:
-        loop.run_until_complete(conn["protocol"].close())
+        event_loop.run_until_complete(conn["protocol"].close())
     _worker.cancel()
     app_settings["amqp"]["connections"] = {}
 
 
 @pytest.fixture("function", params=[{"redis_up": True}, {"redis_up": False}])
-def configured_state_manager(request, redis, dummy_request, loop):
+def configured_state_manager(request, redis, dummy_request, event_loop):
     if request.param.get("redis_up"):
         # Redis
         app_settings["amqp"]["persistent_manager"] = "redis"
@@ -111,7 +111,7 @@ def configured_state_manager(request, redis, dummy_request, loop):
 
 
 @pytest.fixture("function")
-def redis_state_manager(redis, dummy_request, loop):
+def redis_state_manager(redis, dummy_request, event_loop):
     # Redis
     app_settings["amqp"]["persistent_manager"] = "redis"
     app_settings["redis_prefix_key"] = f"amqpjobs-{uuid.uuid4()}-"

@@ -6,14 +6,14 @@ class MockPrometheusMetric:
         self.labels_called = False
         self.observe_called = False
         self._values = []
-        self._labels = {l: None for l in labels or []}
+        self._labels = {label: None for label in labels or []}
 
     def labels(self, **labels):
         self.labels_called = True
-        for l, v in labels.items():
-            if l not in self._labels:
+        for label, value in labels.items():
+            if label not in self._labels:
                 raise Exception()
-            self._labels[l] = v
+            self._labels[label] = value
         return self
 
     def observe(self, value):

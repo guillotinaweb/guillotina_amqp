@@ -1,4 +1,5 @@
 from guillotina import configure
+from guillotina.interfaces import IItem
 from guillotina_amqp.interfaces import MessageType
 from guillotina_amqp.utils import add_object_task
 from guillotina_amqp.utils import add_task
@@ -12,6 +13,11 @@ async def task_object_write(ob, value):
     ob.title = value
     ob.register()
     return "done!"
+
+
+async def task_set_title(context, value):
+    context.title = value
+    context.register()
 
 
 async def task_object_write_generator(ob, values=None):
@@ -51,3 +57,8 @@ async def foobar_write_async_gen(context, request):
             await add_object_task(task_object_write_generator, context, values)
         ).task_id
     }
+
+
+@configure.service(name="@clearTitle", method="POST", context=IItem)
+async def clear_title_in_task(context, request):
+    return {"task_id": (await add_object_task(task_set_title, context, None)).task_id}
