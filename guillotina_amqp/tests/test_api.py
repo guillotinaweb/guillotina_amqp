@@ -165,7 +165,7 @@ async def test_example_of_service_spawning_a_task(container_requester, amqp_work
         task_id = resp["task_id"]
 
         # Wait until task has finished
-        assert wait_for_task(task_id) is True
+        assert await wait_for_task(task_id) is True
         resp, status = await requester("GET", f"/db/guillotina/@amqp-tasks/{task_id}")
         assert status == 200
         assert resp["status"] == "finished"
