@@ -257,7 +257,7 @@ class Worker:
             logger.warning(f"Task got cancelled: {task._job.data}")
             return await self._handle_canceled(task)
         except Exception:
-            logger.error(f"Unhandled task exception: {task_id}", exc_info=True)
+            logger.exception(f"Unhandled task exception: {task_id}")
             # Error during execution of the task
             #
             # If max retries reached
@@ -434,7 +434,7 @@ class Worker:
                 try:
                     await _noop()
                 except Exception:
-                    logger.error("Error scheduling NOOP task", exc_info=True)
+                    logger.exception("Error scheduling NOOP task")
                     pass
 
     async def update_status(self):

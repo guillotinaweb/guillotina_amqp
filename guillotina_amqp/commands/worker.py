@@ -93,7 +93,7 @@ class WorkerCommand(ServerCommand):
         try:
             await self._run_worker(arguments, settings, app, loop)
         except Exception:
-            logger.error("Error running worker. Exiting", exc_info=True)
+            logger.exception("Error running worker. Exiting")
             os._exit(0)
 
     async def _run_worker(self, arguments, settings, app, loop=None):

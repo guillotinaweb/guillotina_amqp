@@ -123,14 +123,29 @@ async def test_info_task_filtered_response(
         assert "job_data" not in resp
 
 
-async def join_amqp_worker():
+async def join_amqp_worker(task_id=None):
+    """Wait until amqp worker has finished executing a specific
+    task_id. If no task_id is specified, will wait for all scheduled
+    tasks.
+
+    """
     sm = get_state_manager()
+    if task_id is not None:
+        # Wait for specific task
+        await wait_for_task(task_id)
+        return
+    # Wait for all scheduled tasks
     async for task_id in sm.list():
-        task = TaskState(task_id)
-        try:
-            await task.join()
-        except TaskNotFoundException:
-            pass
+        await wait_for_task(task_id)
+
+
+async def wait_for_task(task_id: str) -> bool:
+    task = TaskState(task_id)
+    try:
+        await task.join()
+        return True
+    except TaskNotFoundException:
+        return False
 
 
 async def test_example_of_service_spawning_a_task(container_requester, amqp_worker):
@@ -150,7 +165,7 @@ async def test_example_of_service_spawning_a_task(container_requester, amqp_work
         task_id = resp["task_id"]
 
         # Wait until task has finished
-        await join_amqp_worker()
+        assert wait_for_task(task_id) is True
         resp, status = await requester("GET", f"/db/guillotina/@amqp-tasks/{task_id}")
         assert status == 200
         assert resp["status"] == "finished"
