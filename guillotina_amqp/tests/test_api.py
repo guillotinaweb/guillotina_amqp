@@ -123,23 +123,15 @@ async def test_info_task_filtered_response(
         assert "job_data" not in resp
 
 
-async def join_amqp_worker(task_id=None):
-    """Wait until amqp worker has finished executing a specific
-    task_id. If no task_id is specified, will wait for all scheduled
-    tasks.
-
-    """
-    sm = get_state_manager()
-    if task_id is not None:
-        # Wait for specific task
-        await wait_for_task(task_id)
-        return
+async def wait_for_all_tasks() -> None:
     # Wait for all scheduled tasks
+    sm = get_state_manager()
     async for task_id in sm.list():
         await wait_for_task(task_id)
 
 
 async def wait_for_task(task_id: str) -> bool:
+    # Wait for a specific task
     task = TaskState(task_id)
     try:
         await task.join()
