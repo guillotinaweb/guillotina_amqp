@@ -24,7 +24,7 @@ jobs:
       - name: Pre-checks
         run: |
           # Install
-          pip install flake8 isort<5 black mypy mypy_zope
+          pip install flake8 "isort<5" black mypy mypy_zope
 
           # Run commands
           flake8 guillotina_amqp --config=setup.cfg
