@@ -4,6 +4,10 @@ from guillotina_amqp.tests.mocks import MockEnvelope
 from guillotina_amqp.worker import Worker
 
 import json
+import pytest
+
+
+pytestmark = pytest.mark.asyncio
 
 
 async def test_instance_attributes_defaults(dummy_request):

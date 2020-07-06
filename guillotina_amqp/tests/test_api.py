@@ -1,10 +1,17 @@
 from guillotina import task_vars
 from guillotina.tests.utils import get_container
+from guillotina_amqp.exceptions import TaskNotFoundException
 from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import TaskState
 from guillotina_amqp.tests.utils import _test_func
 from guillotina_amqp.utils import add_task
 
 import asynctest
+import json
+import pytest
+
+
+pytestmark = pytest.mark.asyncio
 
 
 async def test_list_tasks_returns_all_tasks(container_requester, dummy_request):
@@ -114,3 +121,48 @@ async def test_info_task_filtered_response(
         )
         assert status == 200
         assert "job_data" not in resp
+
+
+async def wait_for_all_tasks() -> None:
+    # Wait for all scheduled tasks
+    sm = get_state_manager()
+    async for task_id in sm.list():
+        await wait_for_task(task_id)
+
+
+async def wait_for_task(task_id: str) -> bool:
+    # Wait for a specific task
+    task = TaskState(task_id)
+    try:
+        await task.join()
+        return True
+    except TaskNotFoundException:
+        return False
+
+
+async def test_example_of_service_spawning_a_task(container_requester, amqp_worker):
+    async with container_requester as requester:
+        # Create item in container with a title
+        resp, status = await requester(
+            "POST",
+            "/db/guillotina/",
+            data=json.dumps({"@type": "Item", "title": "Foo"}),
+        )
+        assert status == 201
+        item_url = "/db/guillotina/" + resp["@name"]
+
+        # Schedule task to clear title of the it
+        resp, status = await requester("POST", item_url + "/@clearTitle")
+        assert status == 200
+        task_id = resp["task_id"]
+
+        # Wait until task has finished
+        assert await wait_for_task(task_id) is True
+        resp, status = await requester("GET", f"/db/guillotina/@amqp-tasks/{task_id}")
+        assert status == 200
+        assert resp["status"] == "finished"
+
+        #  Check that title was overwritten
+        resp, status = await requester("GET", item_url)
+        assert status == 200
+        assert resp["title"] is None

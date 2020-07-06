@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7]
+        python-version: [3.7, 3.8]
 
     steps:
       # Checkout the repository first
@@ -24,7 +24,7 @@ jobs:
       - name: Pre-checks
         run: |
           # Install
-          pip install flake8 isort black mypy mypy_zope
+          pip install flake8 "isort<5" black mypy mypy_zope
 
           # Run commands
           flake8 guillotina_amqp --config=setup.cfg

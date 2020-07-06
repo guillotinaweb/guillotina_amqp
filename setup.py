@@ -9,11 +9,12 @@ except IOError:
 
 setup(
     name="guillotina_amqp",
-    version="5.0.21.dev0",
+    version="6.0.0",
     description="Integrate amqp into guillotina",
     long_description=README,
     install_requires=[
-        "guillotina>=5.0.0.dev0,<6",
+        "guillotina>=6.0.0<7",
+        "aiohttp>=3.6.0,<4.0.0",
         "aioamqp",
         "lru-dict",
         "aioredis",
@@ -29,13 +30,14 @@ setup(
     extras_require={
         "test": [
             "asynctest==0.13.0",
-            "pytest>=4.1.1",
+            "pytest>=3.8.0<=5.0.0",
             "docker",
             "psycopg2-binary",
-            "pytest-asyncio>=0.8.0",
+            "pytest-asyncio==0.10.0",
             "pytest-cov>=2.6.1",
             "coverage>=4.4",
             "pytest-docker-fixtures[rabbitmq]==1.3.5",
+            "async_asgi_testclient==1.4.4",
         ]
     },
     license="BSD",
@@ -43,6 +45,7 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
         "Topic :: Software Development :: Libraries :: Python Modules",
         "Topic :: Internet :: WWW/HTTP",
         "Intended Audience :: Developers",

@@ -49,7 +49,7 @@ async def handle_connection_closed(name, protocol):
         )
         await remove_connection(name)
     except Exception:
-        logger.error("Error waiting for connection to close", exc_info=True)
+        logger.exception("Error waiting for connection to close")
 
 
 async def heartbeat():
@@ -59,7 +59,7 @@ async def heartbeat():
             for name, connection in app_settings["amqp"].get("connections", {}).items():
                 await connection["protocol"].send_heartbeat()
         except Exception:
-            logger.error("Error sending heartbeat", exc_info=True)
+            logger.exception("Error sending heartbeat")
 
 
 @backoff.on_exception(

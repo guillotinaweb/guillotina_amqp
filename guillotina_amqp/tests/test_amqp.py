@@ -17,16 +17,14 @@ from guillotina_amqp.utils import cancel_task
 
 import asyncio
 import json
+import pytest
 import time
 
 
-async def test_add_task(
-    dummy_request,
-    rabbitmq_container,
-    amqp_worker,
-    amqp_channel,
-    configured_state_manager,
-):
+pytestmark = pytest.mark.asyncio
+
+
+async def test_add_task(dummy_request, rabbitmq_container, amqp_worker, amqp_channel):
     task_vars.request.set(dummy_request)
     ts = await add_task(_test_func, 1, 2)
 
@@ -42,11 +40,7 @@ async def test_add_task(
 
 
 async def test_generator_tasks(
-    dummy_request,
-    rabbitmq_container,
-    amqp_worker,
-    amqp_channel,
-    configured_state_manager,
+    dummy_request, rabbitmq_container, amqp_worker, amqp_channel
 ):
     task_vars.request.set(dummy_request)
     ts = await add_task(_test_asyncgen, 1, 2)
@@ -134,7 +128,7 @@ async def test_async_gen_task_commits_data_from_service(
 
 
 async def test_cancels_long_running_task(
-    dummy_request, rabbitmq_container, amqp_worker, configured_state_manager
+    configured_state_manager, dummy_request, rabbitmq_container, amqp_worker
 ):
     task_vars.request.set(dummy_request)
     # Add long running task
@@ -253,7 +247,7 @@ async def test_worker_sends_noop_tasks_after_inactivity(
     task_vars.request.set(None)
 
 
-def test_job_function_name():
+async def test_job_function_name():
     data = {"func": get_dotted_name(_run_object_task), "args": ["my.func.foobar"]}
     job = Job(None, data, None, None)
     assert job.function_name == "run_object_task/my.func.foobar"

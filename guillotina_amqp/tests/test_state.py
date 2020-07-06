@@ -7,6 +7,9 @@ import asynctest
 import pytest
 
 
+pytestmark = pytest.mark.asyncio
+
+
 async def clear_cache(sm):
     await sm._clean()
 
