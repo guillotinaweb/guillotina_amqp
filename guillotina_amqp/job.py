@@ -22,6 +22,7 @@ from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
 from guillotina_amqp.utils import _yield_object_task
+from guillotina_amqp.utils import make_request
 from zope.interface import alsoProvides
 
 import inspect
@@ -88,15 +89,7 @@ class Job:
         return self._state_manager
 
     async def create_request(self):
-        request = self.base_request.__class__(
-            self.base_request.scheme,
-            self.base_request.method,
-            self.base_request.path,
-            self.base_request.query_string.encode("utf-8"),
-            self.base_request.raw_headers.copy(),
-            client_max_size=self.base_request._client_max_size,
-        )
-        request._state = self.base_request._state.copy()
+        request = make_request(self.base_request, self.data["req_data"])
         g_task_vars.request.set(request)
 
         if self.data.get("db_id"):

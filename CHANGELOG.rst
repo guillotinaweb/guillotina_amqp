@@ -4,6 +4,7 @@
 - Moved to guillotina 6 and python 3.8
 - Moved away from travis and use github actions
  [lferran]
+- Fixed serialization/deserialization of request data
 
 5.0.20 (2020-03-09)
 -------------------
