@@ -19,6 +19,7 @@ setup(
         "lru-dict",
         "aioredis",
         "backoff",
+        "mypy-extensions",
     ],
     author="Nathan Van Gheem",
     author_email="vangheem@gmail.com",

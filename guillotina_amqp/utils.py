@@ -3,6 +3,7 @@ from guillotina import glogging
 from guillotina import task_vars
 from guillotina.interfaces import Allow
 from guillotina.interfaces import IAbsoluteURL
+from guillotina.interfaces import IRequest
 from guillotina.utils import get_authenticated_user
 from guillotina.utils import get_content_path
 from guillotina.utils import get_current_request
@@ -17,6 +18,9 @@ from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
 from guillotina_amqp.state import update_task_scheduled
+from guillotina_amqp.types import SerializedRequest
+from typing import cast
+from urllib.parse import urlparse
 
 import aioamqp
 import asyncio
@@ -58,31 +62,7 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
     # Get the request and prepare request data
     if _request is None:
         _request = get_current_request()
-
-    req_data = {
-        "url": str(_request.url),
-        "headers": dict(_request.headers),
-        "method": _request.method,
-        "annotations": getattr(_request, "annotations", {}),
-    }
-    user = get_authenticated_user()
-    if user is not None:
-        try:
-            req_data["user"] = {
-                "id": user.id,
-                "roles": [
-                    name for name, setting in user.roles.items() if setting == Allow
-                ],
-                "groups": user.groups,
-                "headers": dict(_request.headers),
-                "data": getattr(user, "data", {}),
-            }
-        except AttributeError:
-            pass
-
-    container = task_vars.container.get()
-    if container is not None:
-        req_data["container_url"] = IAbsoluteURL(container, _request)()
+    req_data: SerializedRequest = serialize_request(_request)
 
     if _task_id is None:
         task_id = generate_task_id()
@@ -104,6 +84,7 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
         try:
             state = TaskState(task_id)
             db = task_vars.db.get()
+            container = task_vars.container.get()
             logger.info(f"Scheduling task: {task_id}: {dotted_name}")
             data = json.dumps(
                 {
@@ -238,3 +219,57 @@ def metric_measure(metric, value, labels=None):
     except Exception:
         logger.error("Failed to measure metric", exc_info=True)
         pass
+
+
+def serialize_request(request: IRequest) -> SerializedRequest:
+    """Serializes request data so that it can be sent to rabbitmq
+    """
+    req_data = {
+        "url": str(request.url),
+        "headers": dict(request.headers),
+        "method": request.method,
+        "annotations": getattr(request, "annotations", {}),
+    }
+    user = get_authenticated_user()
+    if user is not None:
+        try:
+            req_data["user"] = {
+                "id": user.id,
+                "roles": [
+                    name
+                    for name, setting in user.roles.items()  # type: ignore
+                    if setting == Allow
+                ],
+                "groups": user.groups,
+                "headers": dict(request.headers),
+                "data": getattr(user, "data", {}),
+            }
+        except AttributeError:
+            pass
+
+    container = task_vars.container.get()
+    if container is not None:
+        req_data["container_url"] = IAbsoluteURL(container, request)()  # type: ignore
+
+    return cast(SerializedRequest, req_data)
+
+
+def make_request(base_request, serialized: SerializedRequest) -> IRequest:
+    """Reconstructs a request object for the job object to run the task
+    off from the serialized data
+    """
+    parsed = urlparse(serialized["url"])
+    request = base_request.__class__(
+        base_request.scheme,
+        serialized["method"],
+        parsed.path,
+        parsed.query.encode("utf-8"),
+        tuple(
+            (str(k).encode("utf-8"), str(v).encode("utf-8"))
+            for k, v in serialized["headers"].items()
+        ),
+        client_max_size=base_request._client_max_size,
+    )
+    request.annotations = serialized["annotations"]
+    request._state = base_request._state.copy()
+    return request
