@@ -434,7 +434,7 @@ class Worker:
                 try:
                     await _noop()
                 except Exception:
-                    logger.error(f"Error scheduling NOOP task", exc_info=True)
+                    logger.error("Error scheduling NOOP task", exc_info=True)
                     pass
 
     async def update_status(self):

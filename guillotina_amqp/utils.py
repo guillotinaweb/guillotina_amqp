@@ -239,5 +239,5 @@ def metric_measure(metric, value, labels=None):
         except AttributeError:
             metric.set(value)
     except Exception:
-        logger.error(f"Failed to measure metric", exc_info=True)
+        logger.error("Failed to measure metric", exc_info=True)
         pass
