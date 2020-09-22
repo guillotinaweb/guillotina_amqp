@@ -1,7 +1,8 @@
 5.0.21 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Fix getting metric
+  [vangheem]
 
 
 5.0.20 (2020-03-09)
