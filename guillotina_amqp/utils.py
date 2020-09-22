@@ -209,7 +209,10 @@ def metric_measure(metric, value, labels=None):
     try:
         labels = labels or {}
         try:
-            labeled = metric.labels(**labels)
+            if labels:
+                labeled = metric.labels(**labels)
+            else:
+                labeled = metric
             try:
                 labeled.observe(value)
             except AttributeError:
