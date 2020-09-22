@@ -4,7 +4,6 @@ on: [push]
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -24,7 +23,7 @@ jobs:
       - name: Pre-checks
         run: |
           # Install
-          pip install flake8 isort black mypy mypy_zope
+          pip install flake8 isort black==19.10b0 mypy mypy_zope
 
           # Run commands
           flake8 guillotina_amqp --config=setup.cfg
