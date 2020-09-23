@@ -36,6 +36,7 @@ setup(
             "pytest-cov>=2.6.1",
             "coverage>=4.4",
             "pytest-docker-fixtures[rabbitmq]==1.3.5",
+            "prometheus-client>=0.8.0",
         ]
     },
     license="BSD",
