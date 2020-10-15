@@ -2,6 +2,7 @@ from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
 from guillotina import glogging
+from guillotina import metrics
 from guillotina import task_vars as g_task_vars
 from guillotina.auth.users import GuillotinaUser
 from guillotina.auth.utils import set_authenticated_user
@@ -33,6 +34,36 @@ import inspect
 import time
 import yarl
 
+
+try:
+    from prometheus_client.utils import INF
+
+    import prometheus_client
+
+    JOB = prometheus_client.Counter(
+        "guillotina_amqp_job_ops_total",
+        "Total count of ops by type of operation and the error if there was.",
+        labelnames=["type", "error"],
+    )
+    JOB_PROCESSING_TIME = prometheus_client.Histogram(
+        "guillotina_amqp_job_ops_processing_time_seconds",
+        "Histogram of operations processing time by type (in seconds)",
+        labelnames=["type"],
+        buckets=(0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0, INF),
+    )
+
+    class watch(metrics.watch):
+        def __init__(self, operation: str):
+            super().__init__(
+                counter=JOB,
+                histogram=JOB_PROCESSING_TIME,
+                labels={"type": operation},
+                error_mappings={"notfound": ObjectNotFoundException},
+            )
+
+
+except ImportError:
+    watch = metrics.dummy_watch  # type: ignore
 
 logger = glogging.getLogger("guillotina_amqp.job")
 
@@ -167,7 +198,8 @@ class Job:
         # Clone request for task
         request = await self.create_request()
         try:
-            result = await self.__run(request)
+            with watch(self.function_name):
+                result = await self.__run(request)
             try:
                 # Finish and return result
                 await commit()
@@ -201,7 +233,10 @@ class Job:
     def function_name(self):
         """
         """
-        func = self.get_function_to_run()
+        try:
+            func = self.get_function_to_run()
+        except (ModuleNotFoundError, ImportError):
+            return self.data["func"]
         dotted_name = get_dotted_name(func)
         if func in [_run_object_task, _yield_object_task]:
             # Remove guillotina_amqp.utils part

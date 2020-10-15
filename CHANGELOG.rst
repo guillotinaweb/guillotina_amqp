@@ -1,7 +1,8 @@
 5.0.22 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Add metrics on jobs, statuses, amqp and redis
+  [vangheem]
 
 
 5.0.21 (2020-09-22)

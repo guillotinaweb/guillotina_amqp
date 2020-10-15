@@ -1,3 +1,4 @@
+from .metrics import watch_amqp
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina import task_vars
@@ -117,12 +118,13 @@ async def add_task(func, *args, _request=None, _retries=3, _task_id=None, **kwar
                 }
             )
             # Publish task data on rabbitmq
-            await channel.publish(
-                data,
-                exchange_name=app_settings["amqp"]["exchange"],
-                routing_key=app_settings["amqp"]["queue"],
-                properties={"delivery_mode": 2},
-            )
+            with watch_amqp("publish"):
+                await channel.publish(
+                    data,
+                    exchange_name=app_settings["amqp"]["exchange"],
+                    routing_key=app_settings["amqp"]["queue"],
+                    properties={"delivery_mode": 2},
+                )
             # Update tasks's global state
             state_manager = get_state_manager()
             await update_task_scheduled(state_manager, task_id, updated=time.time())
@@ -218,26 +220,3 @@ class TimeoutLock(object):
         # Overwrite old lock and acquire with new timeout
         self._lock = asyncio.Lock()
         return await self.acquire(ttl)
-
-
-def metric_measure(metric, value, labels=None):
-    if not metric:
-        # Don't measure if prometheus client is not installed
-        return
-
-    try:
-        labels = labels or {}
-        try:
-            if labels:
-                labeled = metric.labels(**labels)
-            else:
-                labeled = metric
-            try:
-                labeled.observe(value)
-            except AttributeError:
-                labeled.set(value)
-        except AttributeError:
-            metric.set(value)
-    except Exception:
-        logger.error("Failed to measure metric", exc_info=True)
-        pass

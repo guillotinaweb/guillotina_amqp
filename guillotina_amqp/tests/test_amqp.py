@@ -197,7 +197,7 @@ async def test_errored_job_should_be_published_to_delayed_queue(
 
 
 async def test_worker_retries_should_not_exceed_the_limit(
-    dummy_request, rabbitmq_container, amqp_worker, amqp_channel
+    dummy_request, rabbitmq_container, amqp_worker, amqp_channel, metrics_registry
 ):
     task_vars.request.set(dummy_request)
 
@@ -225,6 +225,27 @@ async def test_worker_retries_should_not_exceed_the_limit(
     assert errored_queue["message_count"] == 1
 
     task_vars.request.set(None)
+
+    assert (
+        metrics_registry.get_sample_value(
+            "guillotina_amqp_worker_ops_total",
+            {
+                "type": "guillotina_amqp.tests.utils._test_failing_func",
+                "status": TaskStatus.RUNNING,
+            },
+        )
+        == 1.0
+    )
+    assert (
+        metrics_registry.get_sample_value(
+            "guillotina_amqp_worker_ops_total",
+            {
+                "type": "guillotina_amqp.tests.utils._test_failing_func",
+                "status": TaskStatus.ERRORED,
+            },
+        )
+        == 1.0
+    )
 
 
 async def test_worker_sends_noop_tasks_after_inactivity(
@@ -265,3 +286,7 @@ def test_job_function_name():
     data = {"func": get_dotted_name(_test_func), "args": []}
     job = Job(None, data, None, None)
     assert job.function_name == "guillotina_amqp.tests.utils._test_func"
+
+    data = {"func": "does.not.exist", "args": []}
+    job = Job(None, data, None, None)
+    assert job.function_name == "does.not.exist"
