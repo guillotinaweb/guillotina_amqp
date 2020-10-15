@@ -1,4 +1,4 @@
-5.0.22 (unreleased)
+5.0.22 (2020-10-15)
 -------------------
 
 - Add metrics on jobs, statuses, amqp and redis
