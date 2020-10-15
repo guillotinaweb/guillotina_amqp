@@ -1,4 +1,5 @@
 from guillotina_amqp.state import get_state_manager
+from guillotina_amqp.state import TaskStatus
 from guillotina_amqp.tests.mocks import MockChannel
 from guillotina_amqp.tests.mocks import MockEnvelope
 from guillotina_amqp.worker import Worker
@@ -14,7 +15,7 @@ async def test_instance_attributes_defaults(dummy_request):
     assert worker.sleep_interval == 0.1
 
 
-async def test_worker_acks_canceled_tasks(dummy_request):
+async def test_worker_acks_canceled_tasks(dummy_request, metrics_registry):
     # Fake some task data
     task_id = "foo"
     task_data = json.dumps({"task_id": task_id, "func": "foo.bar"})
@@ -35,8 +36,16 @@ async def test_worker_acks_canceled_tasks(dummy_request):
     assert len(channel.acked) == 1
     assert channel.acked[0]["kwargs"]["delivery_tag"] == envelope.delivery_tag
 
+    assert (
+        metrics_registry.get_sample_value(
+            "guillotina_amqp_worker_ops_total",
+            {"type": "foo.bar", "status": TaskStatus.CANCELED},
+        )
+        == 1.0
+    )
 
-async def test_worker_acks_already_acquired_tasks(dummy_request):
+
+async def test_worker_acks_already_acquired_tasks(dummy_request, metrics_registry):
     # Fake some task data
     task_id = "foo"
     task_data = json.dumps({"task_id": task_id, "func": "foo.bar"})
@@ -56,3 +65,11 @@ async def test_worker_acks_already_acquired_tasks(dummy_request):
     # Check that worker sent ack to amqp channel
     assert len(channel.acked) == 1
     assert channel.acked[0]["kwargs"]["delivery_tag"] == envelope.delivery_tag
+
+    assert (
+        metrics_registry.get_sample_value(
+            "guillotina_amqp_worker_ops_total",
+            {"type": "foo.bar", "status": "alreadyrunning"},
+        )
+        == 1.0
+    )

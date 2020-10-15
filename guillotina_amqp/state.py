@@ -18,10 +18,41 @@ import uuid
 
 
 try:
-    import aioredis
     from guillotina.contrib import redis
+
+    import aioredis
 except ImportError:
     aioredis = None
+
+
+from guillotina import metrics
+
+
+try:
+    import prometheus_client
+
+    REDIS_OPS = prometheus_client.Counter(
+        "guillotina_amqp_redis_ops_total",
+        "Total count of ops by type of operation and the error if there was.",
+        labelnames=["type", "error"],
+    )
+    REDIS_OPS_PROCESSING_TIME = prometheus_client.Histogram(
+        "guillotina_amqp_redis_ops_processing_time_seconds",
+        "Histogram of operations processing time by type (in seconds)",
+        labelnames=["type"],
+    )
+
+    class watch_redis(metrics.watch):
+        def __init__(self, operation: str):
+            super().__init__(
+                counter=REDIS_OPS,
+                histogram=REDIS_OPS_PROCESSING_TIME,
+                labels={"type": operation},
+            )
+
+
+except ImportError:
+    watch_redis = metrics.dummy_watch  # type: ignore
 
 
 logger = glogging.getLogger("guillotina_amqp.state")
@@ -200,20 +231,24 @@ class RedisStateManager:
         cache = await self.get_cache()
         if cache:
             value = data
-            existing = await cache.get(self._cache_prefix + task_id)
+            with watch_redis("get"):
+                existing = await cache.get(self._cache_prefix + task_id)
             if existing:
                 # Update existing with new data
                 value = json.loads(existing)
                 value.update(data)
-            await cache.set(self._cache_prefix + task_id, json.dumps(value))
+            with watch_redis("set"):
+                await cache.set(self._cache_prefix + task_id, json.dumps(value))
             if ttl:
-                resp = await cache.expire(self._cache_prefix + task_id, ttl)
+                with watch_redis("expire"):
+                    resp = await cache.expire(self._cache_prefix + task_id, ttl)
                 return resp > 0
 
     async def get(self, task_id):
         cache = await self.get_cache()
         if cache:
-            value = await cache.get(self._cache_prefix + task_id)
+            with watch_redis("get"):
+                value = await cache.get(self._cache_prefix + task_id)
             if value:
                 return json.loads(value)
         return {}
@@ -224,8 +259,9 @@ class RedisStateManager:
 
     async def list(self):
         cache = await self.get_cache()
-        async for key in cache.iscan(match=f"{self._cache_prefix}*"):
-            yield key.decode().replace(self._cache_prefix, "")
+        with watch_redis("iscan"):
+            async for key in cache.iscan(match=f"{self._cache_prefix}*"):
+                yield key.decode().replace(self._cache_prefix, "")
 
     async def acquire(self, task_id: str, ttl: int) -> None:
         if await self.is_locked(task_id):
@@ -233,7 +269,8 @@ class RedisStateManager:
 
         # Set the lock
         cache = await self.get_cache()
-        resp = await cache.setnx(self.lock_prefix(task_id), self.worker_id)
+        with watch_redis("setnx"):
+            resp = await cache.setnx(self.lock_prefix(task_id), self.worker_id)
         if not resp:
             raise Exception(f"Error acquiring {task_id}")
 
@@ -244,12 +281,14 @@ class RedisStateManager:
 
     async def is_locked(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.get(self.lock_prefix(task_id))
+        with watch_redis("get"):
+            resp = await cache.get(self.lock_prefix(task_id))
         return resp is not None
 
     async def is_mine(self, task_id):
         cache = await self.get_cache()
-        task_owner_id = await cache.get(self.lock_prefix(task_id))
+        with watch_redis("get"):
+            task_owner_id = await cache.get(self.lock_prefix(task_id))
         if not task_owner_id:
             return False
         return task_owner_id.decode() == self.worker_id
@@ -262,7 +301,8 @@ class RedisStateManager:
             # You can't release a task for which you don't own a lock
             raise TaskAccessUnauthorized
         cache = await self.get_cache()
-        resp = await cache.delete(self.lock_prefix(task_id))
+        with watch_redis("delete"):
+            resp = await cache.delete(self.lock_prefix(task_id))
         return resp > 0
 
     async def refresh_lock(self, task_id, ttl):
@@ -275,23 +315,27 @@ class RedisStateManager:
             raise TaskAccessUnauthorized(task_id)
 
         cache = await self.get_cache()
-        resp = await cache.expire(self.lock_prefix(task_id), ttl)
+        with watch_redis("expire"):
+            resp = await cache.expire(self.lock_prefix(task_id), ttl)
         return resp > 0
 
     async def cancel(self, task_id):
         cache = await self.get_cache()
         current_time = time.time()
-        resp = await cache.zadd(self.cancel_prefix, current_time, task_id)
+        with watch_redis("zadd"):
+            resp = await cache.zadd(self.cancel_prefix, current_time, task_id)
         return resp > 0
 
     async def cancelation_list(self):
         cache = await self.get_cache()
-        async for val, score in cache.izscan(self.cancel_prefix):
-            yield val.decode()
+        with watch_redis("izscan"):
+            async for val, score in cache.izscan(self.cancel_prefix):
+                yield val.decode()
 
     async def clean_canceled(self, task_id):
         cache = await self.get_cache()
-        resp = await cache.zrem(self.cancel_prefix, task_id)
+        with watch_redis("zrem"):
+            resp = await cache.zrem(self.cancel_prefix, task_id)
         return resp > 0
 
     async def is_canceled(self, task_id):
@@ -302,7 +346,8 @@ class RedisStateManager:
 
     async def _clean(self):
         cache = await self.get_cache()
-        await cache.flushall()
+        with watch_redis("flush"):
+            await cache.flushall()
 
 
 class TaskState:

@@ -1,3 +1,4 @@
+from .metrics import watch_amqp
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina_amqp import amqp
@@ -9,7 +10,6 @@ from guillotina_amqp.state import update_task_canceled
 from guillotina_amqp.state import update_task_errored
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_scheduled
-from guillotina_amqp.utils import metric_measure
 
 import asyncio
 import guillotina_amqp
@@ -19,23 +19,22 @@ import time
 
 
 try:
-    from prometheus_client import Gauge
-    from prometheus_client import Histogram
+    import prometheus_client
 
-    amqp_running_jobs = Gauge(
-        "amqp_running_jobs", "Number of AQMP running jobs in worker", []
+    OPS = prometheus_client.Counter(
+        "guillotina_amqp_worker_ops_total",
+        "Total count of ops by type of operation and the error if there was.",
+        labelnames=["type", "status"],
     )
 
-    amqp_job_duration = Histogram(
-        "amqp_job_duration",
-        "AMQP job duration histogram",
-        ["dotted_name", "final_status", "container_id"],
-    )
+    def record_op_metric(type: str, status: str) -> None:
+        OPS.labels(type=type, status=status).inc()
+
 
 except ImportError:
-    # Do not record metrics if prometheus_client not installed
-    amqp_running_jobs = None
-    amqp_job_duration = None
+
+    def record_op_metric(type: str, status: str) -> None:
+        ...
 
 
 logger = glogging.getLogger("guillotina_amqp.worker")
@@ -110,9 +109,8 @@ class Worker:
         dotted_name = data["func"]
 
         await update_task_scheduled(self.state_manager, task_id, eventlog=[])
-        logger.info(f"Received task: {task_id}: {dotted_name}")
 
-        self.measure_running_jobs(len(self._running))
+        logger.info(f"Received task: {task_id}: {dotted_name}")
 
         # Block if we reached maximum number of running tasks
         while len(self._running) >= self._max_running:
@@ -129,14 +127,18 @@ class Worker:
 
         # Cancelation
         if await ts.is_canceled():
+            record_op_metric(job.function_name, TaskStatus.CANCELED)
             logger.warning(f"Task {_id} has already been canceled")
             # Ack so that canceled job is removed from main queue
-            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+            with watch_amqp("ack"):
+                await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
             return
 
         if not await ts.acquire():
+            record_op_metric(job.function_name, "alreadyrunning")
             logger.warning(f"Task {_id} is already running in another worker")
-            await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
+            with watch_amqp("ack"):
+                await channel.basic_client_ack(delivery_tag=envelope.delivery_tag)
             return
 
         # Record job's data into global state
@@ -144,6 +146,9 @@ class Worker:
 
         # Add the task to the loop and start it
         task = self.loop.create_task(job())
+
+        record_op_metric(job.function_name, TaskStatus.RUNNING)
+
         task._job = job
         job.task = task
         self._running.append(task)
@@ -152,32 +157,36 @@ class Worker:
     async def _handle_canceled(self, task):
         task_id = task._job.data["task_id"]
         # ACK to main queue to it is not scheduled anymore
-        await task._job.channel.basic_client_ack(
-            delivery_tag=task._job.envelope.delivery_tag
-        )
+        with watch_amqp("ack"):
+            await task._job.channel.basic_client_ack(
+                delivery_tag=task._job.envelope.delivery_tag
+            )
 
         # Set status to cancelled
         await update_task_canceled(
             self.state_manager, task_id, task=task, ttl=self._state_ttl
         )
 
-        self.measure_job_duration(task._job, TaskStatus.CANCELED)
+        record_op_metric(task._job.function_name, TaskStatus.CANCELED)
 
     async def _handle_max_retries_reached(self, task):
         task_id = task._job.data["task_id"]
         logger.warning(f"Task {task_id} reached max {self.max_task_retries} retries")
 
         # Send NACK, as we exceeded the number of retrials
-        await task._job.channel.basic_client_nack(
-            delivery_tag=task._job.envelope.delivery_tag, multiple=False, requeue=False
-        )
+        with watch_amqp("nack"):
+            await task._job.channel.basic_client_nack(
+                delivery_tag=task._job.envelope.delivery_tag,
+                multiple=False,
+                requeue=False,
+            )
 
         # Update status to errored with the traceback
         await update_task_errored(
             self.state_manager, task_id, task=task, ttl=self._state_ttl
         )
 
-        self.measure_job_duration(task._job, TaskStatus.ERRORED)
+        record_op_metric(task._job.function_name, TaskStatus.ERRORED)
 
     async def _handle_retry(self, task, current_retries):
         task_id = task._job.data["task_id"]
@@ -193,26 +202,29 @@ class Worker:
         )
 
         # Publish task data to delay queue
-        await channel.publish(
-            json.dumps(task._job.data),
-            exchange_name=self.MAIN_EXCHANGE,
-            routing_key=self.QUEUE_DELAYED,
-            properties={"delivery_mode": 2},
-        )
+        with watch_amqp("publish"):
+            await channel.publish(
+                json.dumps(task._job.data),
+                exchange_name=self.MAIN_EXCHANGE,
+                routing_key=self.QUEUE_DELAYED,
+                properties={"delivery_mode": 2},
+            )
         # ACK to main queue so it doesn't timeout
-        await channel.basic_client_ack(delivery_tag=task._job.envelope.delivery_tag)
+        with watch_amqp("ack"):
+            await channel.basic_client_ack(delivery_tag=task._job.envelope.delivery_tag)
         logger.info(f"Task {task_id} will be retried")
 
-        self.measure_job_duration(task._job, TaskStatus.ERRORED)
+        record_op_metric(task._job.function_name, "retried")
 
     async def _handle_successful(self, task):
         task_id = task._job.data["task_id"]
         dotted_name = task._job.data["func"]
 
         # ACK rabbitmq: will make task disappear from rabbitmq
-        await task._job.channel.basic_client_ack(
-            delivery_tag=task._job.envelope.delivery_tag
-        )
+        with watch_amqp("ack"):
+            await task._job.channel.basic_client_ack(
+                delivery_tag=task._job.envelope.delivery_tag
+            )
 
         # Update status with result
         await update_task_finished(
@@ -224,21 +236,7 @@ class Worker:
         )
         logger.info(f"Finished task: {task_id}: {dotted_name}")
 
-        self.measure_job_duration(task._job, TaskStatus.FINISHED)
-
-    @staticmethod
-    def measure_job_duration(job, final_status):
-        labels = {
-            "dotted_name": job.function_name,
-            "final_status": final_status,
-            "container_id": job.data.get("container_id"),
-        }
-        duration = time.time() - job._started
-        metric_measure(amqp_job_duration, duration, labels)
-
-    @staticmethod
-    def measure_running_jobs(currently_running):
-        metric_measure(amqp_running_jobs, currently_running)
+        record_op_metric(task._job.function_name, TaskStatus.FINISHED)
 
     def _task_done_callback(self, task):
         # We can't pass coroutines to add_done_callback so we have to

@@ -13,11 +13,12 @@ setup(
     description="Integrate amqp into guillotina",
     long_description=README,
     install_requires=[
-        "guillotina>=5.0.0.dev0,<6",
+        "guillotina>=5.3.55.dev0,<6",
         "aioamqp",
         "lru-dict",
         "aioredis",
         "backoff",
+        "typing_extensions",
     ],
     author="Nathan Van Gheem",
     author_email="vangheem@gmail.com",
