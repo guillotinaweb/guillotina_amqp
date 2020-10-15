@@ -1,3 +1,4 @@
+from .metrics import watch_amqp
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina.utils import resolve_dotted_name
@@ -103,14 +104,15 @@ async def connect(**kwargs):
     conn_factory = resolve_dotted_name(
         amqp_settings.get("connection_factory", aioamqp.connect)
     )
-    transport, protocol = await conn_factory(
-        amqp_settings["host"],
-        amqp_settings["port"],
-        amqp_settings["login"],
-        amqp_settings["password"],
-        amqp_settings["vhost"],
-        heartbeat=amqp_settings["heartbeat"],
-        **kwargs
-    )
-    channel = await protocol.channel()
+    with watch_amqp("connect"):
+        transport, protocol = await conn_factory(
+            amqp_settings["host"],
+            amqp_settings["port"],
+            amqp_settings["login"],
+            amqp_settings["password"],
+            amqp_settings["vhost"],
+            heartbeat=amqp_settings["heartbeat"],
+            **kwargs
+        )
+        channel = await protocol.channel()
     return channel, transport, protocol
