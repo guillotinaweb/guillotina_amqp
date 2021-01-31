@@ -70,7 +70,7 @@ def base_settings_configurator(settings):
 testing.configure_with(base_settings_configurator)
 
 
-@pytest.fixture("function")
+@pytest.fixture(scope="function")
 def amqp_worker(event_loop):
     # Create worker
     _worker = Worker(loop=event_loop, check_activity=False)
@@ -86,7 +86,7 @@ def amqp_worker(event_loop):
     app_settings["amqp"]["connections"] = {}
 
 
-@pytest.fixture("function", params=[{"redis_up": True}, {"redis_up": False}])
+@pytest.fixture(scope="function", params=[{"redis_up": True}, {"redis_up": False}])
 def configured_state_manager(request, redis, dummy_request, event_loop):
     if request.param.get("redis_up"):
         # Redis
@@ -110,7 +110,7 @@ def configured_state_manager(request, redis, dummy_request, event_loop):
         yield
 
 
-@pytest.fixture("function")
+@pytest.fixture(scope="function")
 def redis_state_manager(redis, dummy_request, event_loop):
     # Redis
     app_settings["amqp"]["persistent_manager"] = "redis"
@@ -128,7 +128,7 @@ def redis_state_manager(redis, dummy_request, event_loop):
     yield redis
 
 
-@pytest.fixture("function")
+@pytest.fixture(scope="function")
 async def amqp_channel():
     channel, transport, protocol = await amqp.get_connection()
     return channel
@@ -141,7 +141,7 @@ def rabbitmq_runner():
     rabbitmq_image.stop()
 
 
-@pytest.fixture("function")
+@pytest.fixture(scope="function")
 def rabbitmq_container(rabbitmq):
     app_settings["amqp"].update(
         {
