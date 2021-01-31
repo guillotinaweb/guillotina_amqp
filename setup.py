@@ -39,6 +39,7 @@ setup(
             "coverage>=4.4",
             "pytest-docker-fixtures[rabbitmq]==1.3.5",
             "async_asgi_testclient==1.4.4",
+            "prometheus-client",
         ]
     },
     license="BSD",
