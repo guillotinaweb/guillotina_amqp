@@ -38,4 +38,9 @@ jobs:
           pip install -e .[test]
 
           # Run tests
-          pytest --capture=no --tb=native -v guillotina_amqp --cov=guillotina_amqp --cov-report term-missing --cov-append guillotina_amqp
+          pytest --capture=no --tb=native -v guillotina_amqp --cov=guillotina_amqp --cov-report xml --cov-append guillotina_amqp
+
+          # install codecov library
+          pip install codecov
+
+          codecov --url="https://open-coverage.org/api" --token=14396163 --slug=guillotinaweb/guillotina_amqp
