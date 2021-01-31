@@ -30,12 +30,13 @@ setup(
     tests_require=["pytest"],
     extras_require={
         "test": [
-            "asynctest==0.13.0",
+            "asynctestL=0.13.0",
             "pytest>=3.8.0<=5.0.0",
             "docker",
             "psycopg2-binary",
             "pytest-asyncio==0.10.0",
             "pytest-cov>=2.6.1",
+            "pluggy<=0.12",
             "coverage>=4.4",
             "pytest-docker-fixtures[rabbitmq]==1.3.5",
             "async_asgi_testclient==1.4.4",
