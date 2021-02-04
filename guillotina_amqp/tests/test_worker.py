@@ -9,6 +9,7 @@ import json
 
 async def test_instance_attributes_defaults(dummy_request):
     worker = Worker()
+    assert worker._max_running == 10
     assert worker.num_running == 0
     assert worker.total_run == 0
     assert worker.total_errored == 0
