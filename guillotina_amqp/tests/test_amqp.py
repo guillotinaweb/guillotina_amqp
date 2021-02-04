@@ -174,6 +174,7 @@ async def test_errored_job_should_be_published_to_delayed_queue(
     ts = await _test_failing_func()
     # wait for it to finish
     await ts.join(0.1)
+    amqp_worker.max_task_retries = 5
     assert amqp_worker.total_run == 1
     await amqp_worker.join()
     state = await ts.get_state()
@@ -196,6 +197,36 @@ async def test_errored_job_should_be_published_to_delayed_queue(
     task_vars.request.set(None)
 
 
+async def test_worker_does_not_nack_when_max_retries_is_null(
+    dummy_request, rabbitmq_container, amqp_worker, amqp_channel
+):
+    task_vars.request.set(dummy_request)
+
+    # Add failing function and wait for it to finish
+    ts = await _test_failing_func()
+
+    amqp_worker.max_task_retries = None
+    current_retries = 999
+    await amqp_worker.state_manager.update(ts.task_id, {"job_retries": current_retries})
+
+    # Wait for it to finish
+    await ts.join(0.1)
+
+    # Check that worker ran only once
+    assert amqp_worker.total_run == 1
+
+    # Check that it retries again
+    state = await ts.get_state()
+    retried = state["job_retries"]
+    assert retried == current_retries + 1
+
+    # Check that it went to delay queue
+    delay_queue = await amqp_worker.queue_delayed(amqp_channel)
+    assert delay_queue["message_count"] > 1
+
+    task_vars.request.set(None)
+
+
 async def test_worker_retries_should_not_exceed_the_limit(
     dummy_request, rabbitmq_container, amqp_worker, amqp_channel, metrics_registry
 ):
@@ -205,6 +236,7 @@ async def test_worker_retries_should_not_exceed_the_limit(
     ts = await _test_failing_func()
 
     # Fake job retries to max
+    amqp_worker.max_task_retries = 5
     max_retries = amqp_worker.max_task_retries
     await amqp_worker.state_manager.update(ts.task_id, {"job_retries": max_retries})
     # Wait for it to finish

@@ -4,6 +4,8 @@
 - Lower default number of max_running_tasks, as each task is
   potentially a different connection to the database.
 
+- Allow to retry tasks forever
+
 5.0.22 (2020-10-15)
 -------------------
 
