@@ -58,7 +58,6 @@ class Worker:
     update_status_interval = 20
     total_run = 0
     total_errored = 0
-    max_task_retries = 5
     _status_task = None
     _activity_task = None
 
@@ -69,6 +68,7 @@ class Worker:
         self._max_running = int(
             max_size or app_settings["amqp"].get("max_running_tasks", 5)
         )
+        self.max_task_retries = app_settings["amqp"].get("max_task_retries", None)
         self._closing = False
         self._state_manager = None
         self._state_ttl = int(app_settings["amqp"]["state_ttl"])
@@ -263,7 +263,8 @@ class Worker:
             # If max retries reached
             existing_data = await self.state_manager.get(task_id)
             retrials = existing_data.get("job_retries", 0)
-            if retrials >= self.max_task_retries:
+
+            if self.max_task_retries is not None and retrials >= self.max_task_retries:
                 return await self._handle_max_retries_reached(task)
 
             # Otherwise let task be retried
