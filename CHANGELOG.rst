@@ -1,6 +1,7 @@
 6.0.0 (unreleased)
 -------------------
 
+- Allow to retry tasks forever
 - Moved to guillotina 6 and python 3.8
 - Moved away from travis and use github actions
  [lferran]
