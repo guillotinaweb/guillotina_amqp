@@ -1,4 +1,4 @@
-5.0.23 (unreleased)
+5.0.23 (2021-02-04)
 -------------------
 
 - Lower default number of max_running_tasks, as each task is
