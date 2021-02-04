@@ -202,22 +202,21 @@ async def test_worker_does_not_nack_when_max_retries_is_null(
     amqp_worker.max_task_retries = None
     current_retries = 999
     await amqp_worker.state_manager.update(ts.task_id, {"job_retries": current_retries})
+
     # Wait for it to finish
     await ts.join(0.1)
 
     # Check that worker ran only once
     assert amqp_worker.total_run == 1
 
-    # Check that it retries up to max
+    # Check that it retries again
     state = await ts.get_state()
     retried = state["job_retries"]
     assert retried == current_retries + 1
 
     # Check that it went to delay queue
-    main_queue = await amqp_worker.queue_main(amqp_channel)
     delay_queue = await amqp_worker.queue_delayed(amqp_channel)
-    assert main_queue["consumer_count"] == 1
-    assert delay_queue["message_count"] == 1
+    assert delay_queue["message_count"] > 1
 
     task_vars.request.set(None)
 
