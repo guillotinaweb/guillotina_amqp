@@ -19,6 +19,7 @@ app_settings = {
         "persistent_manager": "memory",
         "max_running_tasks": 20,
         "state_ttl": 60 * 60 * 24,  # 1 day
+        "max_task_retries": 5,
     },
     "commands": {"amqp-worker": "guillotina_amqp.commands.worker.WorkerCommand"},
 }
