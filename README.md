@@ -37,12 +37,17 @@ Example docs
 ```
 
 - `host` and `port`: should point to the rabbit-mq instance
-- `login` and `password`: should match the rabbit-mq access credentials
+- `login` and `password`: should match the rabbit-mq access
+  credentials
 - `queue`: main queue where tasks are consumed from
 - `persistent_manager`: named utility to use to keep tasks state.
-- `delay_ttl_ms` and `errored_ttl_ms`: can be used to configure queue delays. Default to 2 minutes and 1 week, correspondingly.
+- `delay_ttl_ms` and `errored_ttl_ms`: can be used to configure queue
+  delays. Default to 2 minutes and 1 week, correspondingly.
 - `max_running_tasks`: maximum number of simultaneous asyncio tasks
   hat workers are allowed to run.
+- `max_task_retries`: Max number of retries before an errored task is
+  sent to the dead letter queue. If set to `None`, it will be retried
+  forever.
 
 ## Dependencies
 
