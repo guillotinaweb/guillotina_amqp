@@ -1,8 +1,10 @@
 5.0.23 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Lower default number of max_running_tasks, as each task is
+  potentially a different connection to the database.
 
+- Allow to retry tasks forever
 
 5.0.22 (2020-10-15)
 -------------------
@@ -16,7 +18,6 @@
 
 - Fix getting metric
   [vangheem]
-
 
 5.0.20 (2020-03-09)
 -------------------
