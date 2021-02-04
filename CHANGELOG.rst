@@ -1,6 +1,8 @@
 6.0.0 (unreleased)
 -------------------
 
+- Lower default number of max_running_tasks, as each task is
+  potentially a different connection to the database.
 - Moved to guillotina 6 and python 3.8
 - Moved away from travis and use github actions
  [lferran]
