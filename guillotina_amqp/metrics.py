@@ -72,10 +72,7 @@ try:
                 error_mappings={"notfound": ObjectNotFoundException},
             )
 
-    watch_job_request = metrics.watch(
-        counter=JOB_REQUEST,
-        histogram=JOB_REQUEST_TIME,
-    )
+    watch_job_request = metrics.watch(counter=JOB_REQUEST, histogram=JOB_REQUEST_TIME,)
 
     class watch_job_commit(metrics.watch):
         def __init__(self, operation: str):
