@@ -2,7 +2,6 @@ from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
 from guillotina import glogging
-from guillotina import metrics
 from guillotina import task_vars as g_task_vars
 from guillotina.auth.users import GuillotinaUser
 from guillotina.auth.utils import set_authenticated_user
@@ -21,6 +20,9 @@ from guillotina_amqp import task_vars
 from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
+from guillotina_amqp.metrics import watch_job
+from guillotina_amqp.metrics import watch_job_commit
+from guillotina_amqp.metrics import watch_job_request
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
@@ -34,36 +36,6 @@ import inspect
 import time
 import yarl
 
-
-try:
-    from prometheus_client.utils import INF
-
-    import prometheus_client
-
-    JOB = prometheus_client.Counter(
-        "guillotina_amqp_job_ops_total",
-        "Total count of ops by type of operation and the error if there was.",
-        labelnames=["type", "error"],
-    )
-    JOB_PROCESSING_TIME = prometheus_client.Histogram(
-        "guillotina_amqp_job_ops_processing_time_seconds",
-        "Histogram of operations processing time by type (in seconds)",
-        labelnames=["type"],
-        buckets=(0.05, 0.1, 0.5, 1.0, 5.0, 10.0, 30.0, 60.0, 300.0, INF),
-    )
-
-    class watch(metrics.watch):
-        def __init__(self, operation: str):
-            super().__init__(
-                counter=JOB,
-                histogram=JOB_PROCESSING_TIME,
-                labels={"type": operation},
-                error_mappings={"notfound": ObjectNotFoundException},
-            )
-
-
-except ImportError:
-    watch = metrics.dummy_watch  # type: ignore
 
 logger = glogging.getLogger("guillotina_amqp.job")
 
@@ -196,14 +168,16 @@ class Job:
 
     async def __call__(self):
         # Clone request for task
-        request = await self.create_request()
+        with watch_job_request:
+            request = await self.create_request()
         try:
-            with watch(self.function_name):
+            with watch_job(self.function_name):
                 result = await self.__run(request)
             try:
                 # Finish and return result
-                await commit()
-                request.execute_futures()
+                with watch_job_commit(self.function_name):
+                    await commit()
+                    request.execute_futures()
             except Exception:
                 logger.error("Error commiting job", exc_info=True)
                 raise
