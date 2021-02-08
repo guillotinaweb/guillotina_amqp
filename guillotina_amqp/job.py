@@ -2,9 +2,6 @@ from aiohttp import test_utils
 from aiohttp.helpers import noop
 from datetime import datetime
 from guillotina import glogging
-from guillotina_amqp.metrics import watch_job
-from guillotina_amqp.metrics import watch_job_request
-from guillotina_amqp.metrics import watch_job_commit
 from guillotina import task_vars as g_task_vars
 from guillotina.auth.users import GuillotinaUser
 from guillotina.auth.utils import set_authenticated_user
@@ -23,6 +20,9 @@ from guillotina_amqp import task_vars
 from guillotina_amqp.exceptions import ObjectNotFoundException
 from guillotina_amqp.interfaces import ITaskDefinition
 from guillotina_amqp.interfaces import MessageType
+from guillotina_amqp.metrics import watch_job
+from guillotina_amqp.metrics import watch_job_commit
+from guillotina_amqp.metrics import watch_job_request
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import update_task_running
 from guillotina_amqp.utils import _run_object_task
@@ -35,6 +35,7 @@ from zope.interface import alsoProvides
 import inspect
 import time
 import yarl
+
 
 logger = glogging.getLogger("guillotina_amqp.job")
 

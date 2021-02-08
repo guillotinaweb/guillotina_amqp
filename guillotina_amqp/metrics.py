@@ -3,8 +3,9 @@ from guillotina_amqp.exceptions import ObjectNotFoundException
 
 
 try:
-    import prometheus_client
     from prometheus_client.utils import INF
+
+    import prometheus_client
 
     RMQ_OPS = prometheus_client.Counter(
         "guillotina_amqp_server_ops_total",

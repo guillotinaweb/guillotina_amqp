@@ -1,8 +1,11 @@
 from guillotina_amqp.job import Job
-from guillotina_amqp.tests.mocks import MockEnvelope, MockChannel
+from guillotina_amqp.tests.mocks import MockChannel
+from guillotina_amqp.tests.mocks import MockEnvelope
 from unittest.mock import MagicMock
+
 import asynctest
 import pytest
+
 
 func_name = "guillotina_amqp.tests.package.task_foobar_yo"
 
