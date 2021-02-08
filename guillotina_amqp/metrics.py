@@ -1,4 +1,5 @@
 from guillotina import metrics
+from guillotina_amqp.exceptions import ObjectNotFoundException
 
 
 try:
@@ -82,6 +83,7 @@ try:
                 histogram=JOB_COMMIT_TIME,
                 labels={"type": operation},
             )
+
 
 except ImportError:
     watch_job = watch_amqp = watch_job_request = watch_job_commit = metrics.dummy_watch  # type: ignore
