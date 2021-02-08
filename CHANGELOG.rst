@@ -1,8 +1,7 @@
 5.0.24 (unreleased)
 -------------------
 
-- Nothing changed yet.
-
+- More metrics on job execution
 
 5.0.23 (2021-02-04)
 -------------------
