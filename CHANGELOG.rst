@@ -1,4 +1,4 @@
-5.0.25 (unreleased)
+5.0.25 (2021-03-15)
 -------------------
 
 - Set guillotina.AccessContent permission to GET task
