@@ -41,14 +41,14 @@ async def list_tasks(context, request):
     method="GET",
     name="@amqp-tasks/{task_id}",
     context=IContainer,
-    permission="guillotina.ManageAMQP",
+    permission="guillotina.AccessContent",
     summary="Shows the info of a given task id",
 )
 @configure.service(
     method="GET",
     name="@amqp-info/{task_id}",
     context=IContainer,
-    permission="guillotina.ManageAMQP",
+    permission="guillotina.AccessContent",
     summary="Deprecated: Shows the info of a given task id",
 )
 async def info_task(context, request):

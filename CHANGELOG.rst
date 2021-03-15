@@ -1,7 +1,8 @@
 5.0.25 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Set guillotina.AccessContent permission to GET task
+  [qiwn]
 
 
 5.0.24 (2021-02-08)
