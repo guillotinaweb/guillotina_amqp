@@ -30,11 +30,11 @@ setup(
     extras_require={
         "test": [
             "asynctest==0.13.0",
-            "pytest>=4.1.1",
+            "pytest>=4.6.0,<6.1.0",
             "docker",
             "psycopg2-binary",
-            "pytest-asyncio>=0.8.0",
-            "pytest-cov>=2.6.1",
+            "pytest-asyncio==0.10.0",
+            "pytest-cov>=2.6.1,<=2.9.0",
             "coverage>=4.4",
             "pytest-docker-fixtures[rabbitmq]==1.3.5",
             "prometheus-client>=0.8.0",
