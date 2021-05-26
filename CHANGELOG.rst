@@ -1,4 +1,4 @@
-5.0.26 (unreleased)
+5.0.26 (2021-05-26)
 -------------------
 
 - Do not use zsets in redis for cancellation list
