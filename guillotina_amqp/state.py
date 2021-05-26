@@ -11,7 +11,6 @@ from lru import LRU
 
 import asyncio
 import backoff
-import copy
 import json
 import uuid
 
@@ -168,7 +167,7 @@ class MemoryStateManager:
 _EMPTY = object()
 
 
-def get_state_manager(loop=None):
+def get_state_manager(loop=None) -> IStateManagerUtility:
     """Factory that gets the configured state manager.
 
     Currently we have two implementations: memory | redis

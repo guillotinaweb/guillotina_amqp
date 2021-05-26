@@ -2,6 +2,7 @@ from .metrics import watch_amqp
 from guillotina import app_settings
 from guillotina import glogging
 from guillotina_amqp import amqp
+from guillotina_amqp.interfaces import IStateManagerUtility
 from guillotina_amqp.job import Job
 from guillotina_amqp.state import get_state_manager
 from guillotina_amqp.state import TaskState
@@ -10,6 +11,7 @@ from guillotina_amqp.state import update_task_canceled
 from guillotina_amqp.state import update_task_errored
 from guillotina_amqp.state import update_task_finished
 from guillotina_amqp.state import update_task_scheduled
+from typing import List
 
 import asyncio
 import guillotina_amqp
@@ -63,7 +65,7 @@ class Worker:
     def __init__(self, request=None, loop=None, max_size=None, check_activity=True):
         self.request = request
         self.loop = loop
-        self._running = []
+        self._running: List[asyncio.Task] = []
         self._max_running = int(
             max_size or app_settings["amqp"].get("max_running_tasks", 5)
         )
@@ -82,7 +84,7 @@ class Worker:
         self.TTL_DELAYED = app_settings["amqp"].get("delayed_ttl_ms", default_delayed)
 
     @property
-    def state_manager(self):
+    def state_manager(self) -> IStateManagerUtility:
         if self._state_manager is None:
             self._state_manager = get_state_manager()
         return self._state_manager
@@ -455,7 +457,7 @@ class Worker:
             # state manager
             for task in self._running:
                 _id = task._job.data["task_id"]
-                if await self._state_manager.is_canceled():
+                if await self._state_manager.is_canceled(_id):
                     logger.warning(f"Canceling task {_id}")
                     if not task.done():
                         task.cancel()
