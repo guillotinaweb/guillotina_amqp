@@ -54,7 +54,7 @@ class Worker:
 
     sleep_interval = 0.1
     last_activity = time.time()
-    update_status_interval = 20
+    update_status_interval = 30
     total_run = 0
     total_errored = 0
     _status_task = None
@@ -453,15 +453,14 @@ class Worker:
 
             # Cancel local tasks that have been cancelled in global
             # state manager
-            async for val in self.state_manager.cancelation_list():
-                for task in self._running:
-                    _id = task._job.data["task_id"]
-                    if _id == val:
-                        logger.warning(f"Canceling task {_id}")
-                        if not task.done():
-                            task.cancel()
-                        self._running.remove(task)
-                        await self._state_manager.clean_canceled(_id)
+            for task in self._running:
+                _id = task._job.data["task_id"]
+                if await self._state_manager.is_canceled():
+                    logger.warning(f"Canceling task {_id}")
+                    if not task.done():
+                        task.cancel()
+                    self._running.remove(task)
+                    await self._state_manager.clean_canceled(_id)
 
 
 @guillotina_amqp.task

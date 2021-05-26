@@ -13,7 +13,6 @@ import asyncio
 import backoff
 import copy
 import json
-import time
 import uuid
 
 
@@ -149,11 +148,6 @@ class MemoryStateManager:
         self._canceled.update({task_id})
         return True
 
-    async def cancelation_list(self):
-        canceled = copy.deepcopy(self._canceled)
-        for task_id in canceled:
-            yield task_id
-
     async def clean_canceled(self, task_id):
         try:
             self._canceled.remove(task_id)
@@ -189,8 +183,7 @@ def get_state_manager(loop=None):
 
 @configure.utility(provides=IStateManagerUtility, name="redis")
 class RedisStateManager:
-    """Implementation of the IStateManagerUtility with Redis
-    """
+    """Implementation of the IStateManagerUtility with Redis"""
 
     def __init__(self, loop=None):
         self._cache_prefix = app_settings.get("redis_prefix_key", "amqpjobs-")
@@ -226,8 +219,7 @@ class RedisStateManager:
             return None
 
     async def update(self, task_id, data, ttl=None):
-        """Updates the state of the task. ttl can be set to expire the state.
-        """
+        """Updates the state of the task. ttl can be set to expire the state."""
         cache = await self.get_cache()
         if cache:
             value = data
@@ -259,7 +251,7 @@ class RedisStateManager:
 
     async def list(self):
         cache = await self.get_cache()
-        with watch_redis("iscan"):
+        with watch_redis("iscan_list"):
             async for key in cache.iscan(match=f"{self._cache_prefix}*"):
                 yield key.decode().replace(self._cache_prefix, "")
 
@@ -321,28 +313,20 @@ class RedisStateManager:
 
     async def cancel(self, task_id):
         cache = await self.get_cache()
-        current_time = time.time()
-        with watch_redis("zadd"):
-            resp = await cache.zadd(self.cancel_prefix, current_time, task_id)
-        return resp > 0
-
-    async def cancelation_list(self):
-        cache = await self.get_cache()
-        with watch_redis("izscan"):
-            async for val, score in cache.izscan(self.cancel_prefix):
-                yield val.decode()
+        with watch_redis("set"):
+            await cache.set(self.cancel_prefix + task_id, "true", expire=60 * 60)
+        return True
 
     async def clean_canceled(self, task_id):
         cache = await self.get_cache()
-        with watch_redis("zrem"):
-            resp = await cache.zrem(self.cancel_prefix, task_id)
-        return resp > 0
+        with watch_redis("delete"):
+            await cache.delete(self.cancel_prefix + task_id)
 
     async def is_canceled(self, task_id):
-        async for tid in self.cancelation_list():
-            if tid == task_id:
-                return True
-        return False
+        cache = await self.get_cache()
+        with watch_redis("get"):
+            val = await cache.get(self.cancel_prefix + task_id)
+        return val == b"true"
 
     async def _clean(self):
         cache = await self.get_cache()
