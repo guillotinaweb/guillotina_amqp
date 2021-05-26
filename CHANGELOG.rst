@@ -1,7 +1,8 @@
 5.0.26 (unreleased)
 -------------------
 
-- Nothing changed yet.
+- Do not use zsets in redis for cancellation list
+  [vangheem]
 
 
 5.0.25 (2021-03-15)

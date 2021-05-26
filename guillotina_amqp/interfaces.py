@@ -11,18 +11,15 @@ class MessageType(object):
 
 class IStateManagerUtility(Interface):
     async def update(task_id, data):
-        """Updates data related to task id into state manager
-        """
+        """Updates data related to task id into state manager"""
         raise NotImplementedError()
 
     async def get(self, task_id):
-        """Gets whatever was stored in state manager for task_id
-        """
+        """Gets whatever was stored in state manager for task_id"""
         raise NotImplementedError()
 
     async def exists(self, task_id):
-        """Returns whether a task id exists in the state manager
-        """
+        """Returns whether a task id exists in the state manager"""
         raise NotImplementedError()
 
     async def list(self):
@@ -32,8 +29,7 @@ class IStateManagerUtility(Interface):
         raise NotImplementedError()
 
     async def is_mine(self, task_id):
-        """Returns whether the worker has a lock on a given task_idq
-        """
+        """Returns whether the worker has a lock on a given task_idq"""
         raise NotImplementedError()
 
     async def cancel(self, task_id):
@@ -57,12 +53,6 @@ class IStateManagerUtility(Interface):
     async def refresh_lock(self, task_id, ttl):
         """
         Update lock TTL
-        """
-        raise NotImplementedError()
-
-    async def cancelation_list(self):
-        """
-        Yields items from the canceled set
         """
         raise NotImplementedError()
 

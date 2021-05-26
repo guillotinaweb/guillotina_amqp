@@ -51,32 +51,6 @@ async def test_list_should_yield_all_items(configured_state_manager, loop):
     await clear_cache(state_manager)
 
 
-async def test_cancel_should_put_tasks_in_cancelation_list(
-    configured_state_manager, loop
-):
-    state_manager = get_state_manager(loop)
-    await state_manager.update("foo", {"status": "bar"})
-    canceled_list = [tid async for tid in state_manager.cancelation_list()]
-    assert "foo" not in canceled_list
-    await state_manager.cancel("foo")
-    canceled_list = [tid async for tid in state_manager.cancelation_list()]
-    assert "foo" in canceled_list
-    await clear_cache(state_manager)
-
-
-async def test_clean_cancel_should_clean_from_canceled_list(
-    configured_state_manager, loop
-):
-    state_manager = get_state_manager(loop)
-    await state_manager.cancel("foo")
-    canceled_list = [tid async for tid in state_manager.cancelation_list()]
-    assert "foo" in canceled_list
-    await state_manager.clean_canceled("foo")
-    canceled_list = [tid async for tid in state_manager.cancelation_list()]
-    assert "foo" not in canceled_list
-    await clear_cache(state_manager)
-
-
 async def test_is_canceled_should_return_true_only_on_canceled_tasks(
     configured_state_manager, loop
 ):
